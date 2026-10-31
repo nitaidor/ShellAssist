@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build & Packaged Outputs
+dist/
+dist-exe/
+
+# Logs & OS Metadata
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Scripts
+gemma4e4b.bat
+RunInDev.bat
