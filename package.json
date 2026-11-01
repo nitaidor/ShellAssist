@@ -25,11 +25,10 @@
     "vite": "^5.4.10"
   },
   "build": {
-    "appId": "com.shellassist.desktop",
+    "appId": "com.shellassist.app",
     "productName": "ShellAssist",
     "directories": {
-      "output": "dist-exe",
-      "buildResources": "assets"
+      "output": "dist-exe"
     },
     "files": [
       "dist/**/*",
@@ -62,7 +61,6 @@
       "shortcutName": "ShellAssist",
       "installerIcon": "assets/icon.ico",
       "uninstallerIcon": "assets/icon.ico",
-      "installerHeaderIcon": "assets/icon.ico",
       "artifactName": "${productName} Setup ${version}.${ext}"
     },
     "portable": {
