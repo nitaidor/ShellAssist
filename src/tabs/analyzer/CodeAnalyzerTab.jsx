@@ -44,6 +44,16 @@ export const CodeAnalyzerTab = ({
     }
   };
 
+  const handleUpdateAnalyzerTokens = (sessionId, newTokens) => {
+    if (activeAnalyzerTurn && activeAnalyzerTurn.id === sessionId) {
+      setActiveAnalyzerTurn(prev => prev ? { ...prev, tokens: newTokens, deepBreakdownComplete: true } : prev);
+    }
+    setAnalyzerHistory(prev => prev.map(s => s.id === sessionId ? {
+      ...s,
+      turn: { ...s.turn, tokens: newTokens, deepBreakdownComplete: true }
+    } : s));
+  };
+
   const startNewAnalyzerSession = async () => {
     if (!analyzerInput.trim()) return;
     const currentInput = analyzerInput;
@@ -205,6 +215,8 @@ export const CodeAnalyzerTab = ({
               riskLevel={activeAnalyzerTurn.riskLevel}
               riskExplanation={activeAnalyzerTurn.riskExplanation}
               overallExplanation={activeAnalyzerTurn.overallExplanation}
+              deepBreakdownComplete={Boolean(activeAnalyzerTurn.deepBreakdownComplete)}
+              onUpdateTokens={(newTokens) => handleUpdateAnalyzerTokens(activeAnalyzerTurn.id, newTokens)}
               runCtx={activeAnalyzerTurn.ctx}
               settings={settings}
             />
@@ -270,7 +282,12 @@ export const CodeAnalyzerTab = ({
               </div>
             )}
             {filterHistory(displayAnalyzerHistory, analyzerSearch).sort((a,b) => b.unixTime - a.unixTime).map((session, index) => (
-              <AnalyzerHistoryItem key={index} session={session} settings={settings} />
+              <AnalyzerHistoryItem
+                key={session.id || index}
+                session={session}
+                settings={settings}
+                onUpdateTokens={(newTokens) => handleUpdateAnalyzerTokens(session.id, newTokens)}
+              />
             ))}
           </div>
         )}

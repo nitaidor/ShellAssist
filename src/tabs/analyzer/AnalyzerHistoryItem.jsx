@@ -4,7 +4,7 @@ import ContextTags from '../../components/common/ContextTags';
 import InteractiveCommand from '../../components/terminal/InteractiveCommand';
 import { formatSessionDate } from '../../utils/platform';
 
-export const AnalyzerHistoryItem = ({ session, settings }) => {
+export const AnalyzerHistoryItem = ({ session, settings, onUpdateTokens }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
@@ -32,11 +32,14 @@ export const AnalyzerHistoryItem = ({ session, settings }) => {
           </div>
           <InteractiveCommand
             tokens={session.turn.tokens || []}
+            command={session.turn.command || ''}
             hasAlternative={session.turn.hasAlternative}
             alternativeText={session.turn.alternativeText}
             riskLevel={session.turn.riskLevel}
             riskExplanation={session.turn.riskExplanation}
             overallExplanation={session.turn.overallExplanation}
+            deepBreakdownComplete={Boolean(session.turn.deepBreakdownComplete)}
+            onUpdateTokens={onUpdateTokens}
             runCtx={session.ctx}
             settings={settings}
           />

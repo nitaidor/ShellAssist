@@ -61,6 +61,7 @@ export const CommandBuilderTab = ({
   const handleToggleStar = (turnId) => {
     if (activeBuilderTurns.some(t => t.id === turnId)) {
       setActiveBuilderTurns(prev => prev.map(t => t.id === turnId ? { ...t, isStarred: !t.isStarred } : t));
+      setHistory(prev => prev.map(h => h.id === activeThreadId ? { ...h, turns: h.turns.map(t => t.id === turnId ? { ...t, isStarred: !t.isStarred } : t) } : h));
       return;
     }
     let foundInHistory = false;
@@ -87,6 +88,18 @@ export const CommandBuilderTab = ({
   const handleUpdateSessionDebugThread = (sessionId, turnIndex, thread) => {
     setHistory(prev => prev.map(h => h.id === sessionId ? { ...h, turns: h.turns.map((t, i) => i === turnIndex ? { ...t, debugThread: thread } : t) } : h));
     setFavorites(prev => prev.map(f => f.id === sessionId ? { ...f, turns: f.turns.map((t, i) => i === turnIndex ? { ...t, debugThread: thread } : t) } : f));
+  };
+
+  // Persists deep token breakdowns into both active turns and saved History/Favorites
+  const handleUpdateSessionTokens = (sessionId, turnIndex, newTokens) => {
+    setHistory(prev => prev.map(h => h.id === sessionId ? {
+      ...h,
+      turns: h.turns.map((t, i) => i === turnIndex ? { ...t, tokens: newTokens, deepBreakdownComplete: true } : t)
+    } : h));
+    setFavorites(prev => prev.map(f => f.id === sessionId ? {
+      ...f,
+      turns: f.turns.map((t, i) => i === turnIndex ? { ...t, tokens: newTokens, deepBreakdownComplete: true } : t)
+    } : f));
   };
 
   const handleGenerateNew = async () => {
@@ -282,7 +295,14 @@ export const CommandBuilderTab = ({
                   turn={turn}
                   isFirst={index === 0}
                   isLast={index === activeBuilderTurns.length - 1}
-                  onUpdateDebugThread={(thread) => setActiveBuilderTurns(prev => prev.map((t, i) => i === index ? { ...t, debugThread: thread } : t))}
+                  onUpdateDebugThread={(thread) => {
+                    setActiveBuilderTurns(prev => prev.map((t, i) => i === index ? { ...t, debugThread: thread } : t));
+                    if (activeThreadId) handleUpdateSessionDebugThread(activeThreadId, index, thread);
+                  }}
+                  onUpdateTokens={(newTokens) => {
+                    setActiveBuilderTurns(prev => prev.map((t, i) => i === index ? { ...t, tokens: newTokens, deepBreakdownComplete: true } : t));
+                    if (activeThreadId) handleUpdateSessionTokens(activeThreadId, index, newTokens);
+                  }}
                   onToggleStar={handleToggleStar}
                   settings={settings}
                 />
@@ -423,6 +443,7 @@ export const CommandBuilderTab = ({
                     item={item}
                     onCollapseTop={() => setIsBuilderExpanded(false)}
                     onUpdateTurnDebugThread={(turnIndex, thread) => handleUpdateSessionDebugThread(item.id, turnIndex, thread)}
+                    onUpdateTurnTokens={(turnIndex, newTokens) => handleUpdateSessionTokens(item.id, turnIndex, newTokens)}
                     onAddTurn={(newTurn) => handleAddTurnToSession(item.id, newTurn)}
                     onToggleStar={handleToggleStar}
                     settings={settings}
@@ -462,6 +483,7 @@ export const CommandBuilderTab = ({
                     item={item}
                     onCollapseTop={() => setIsBuilderExpanded(false)}
                     onUpdateTurnDebugThread={(turnIndex, thread) => handleUpdateSessionDebugThread(item.id, turnIndex, thread)}
+                    onUpdateTurnTokens={(turnIndex, newTokens) => handleUpdateSessionTokens(item.id, turnIndex, newTokens)}
                     onAddTurn={(newTurn) => handleAddTurnToSession(item.id, newTurn)}
                     onToggleStar={handleToggleStar}
                     isFavoriteList={true}

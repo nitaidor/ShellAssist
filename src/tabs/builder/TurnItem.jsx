@@ -4,7 +4,7 @@ import ContextTags from '../../components/common/ContextTags';
 import InteractiveCommand from '../../components/terminal/InteractiveCommand';
 import CommandDebugger from '../debugger/CommandDebugger';
 
-export const TurnItem = ({ turn, isFirst, isLast, onUpdateDebugThread, onToggleStar, showDebug = true, isFavoriteList = false, settings }) => {
+export const TurnItem = ({ turn, isFirst, isLast, onUpdateDebugThread, onUpdateTokens, onToggleStar, showDebug = true, isFavoriteList = false, settings }) => {
   const [isExpanded, setIsExpanded] = useState(isFavoriteList ? turn.isStarred : isLast);
   const [isDebugExpanded, setIsDebugExpanded] = useState(false);
   const [pendingErrorOutput, setPendingErrorOutput] = useState('');
@@ -66,6 +66,8 @@ export const TurnItem = ({ turn, isFirst, isLast, onUpdateDebugThread, onToggleS
             riskExplanation={turn.riskExplanation}
             overallExplanation={isCodeToEnFirstTurn ? turn.overallExplanation : null}
             requiresElevation={turn.requiresElevation}
+            deepBreakdownComplete={Boolean(turn.deepBreakdownComplete)}
+            onUpdateTokens={onUpdateTokens}
             runCtx={turn.ctx}
             settings={settings}
             onErrorOutput={(errText) => {

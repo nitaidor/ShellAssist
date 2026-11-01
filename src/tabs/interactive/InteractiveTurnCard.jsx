@@ -14,7 +14,8 @@ export const InteractiveTurnCard = ({
   onCancelPrimaryCommand,
   onRunFixCommand,
   onCancelDebugCycle,
-  onCancelAutoDebugAnalysis
+  onCancelAutoDebugAnalysis,
+  onUpdateTokens
 }) => {
   const [isExpanded, setIsExpanded] = useState(isReadOnly ? false : isLast);
   useEffect(() => {
@@ -67,6 +68,8 @@ export const InteractiveTurnCard = ({
             riskExplanation={turn.riskExplanation}
             overallExplanation={null}
             requiresElevation={turn.requiresElevation}
+            deepBreakdownComplete={Boolean(turn.deepBreakdownComplete)}
+            onUpdateTokens={onUpdateTokens}
             runCtx={{ ...ctx, type: 'Command' }}
             settings={settings}
             collapsibleInspector={true}

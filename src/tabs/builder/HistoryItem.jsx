@@ -5,7 +5,7 @@ import TurnItem from './TurnItem';
 import { generateId, formatSessionDate } from '../../utils/platform';
 import { fetchCommandGeneration } from '../../services/gemini';
 
-export const HistoryItem = ({ item, onUpdateTurnDebugThread, onAddTurn, onToggleStar, isFavoriteList = false, settings, onCollapseTop }) => {
+export const HistoryItem = ({ item, onUpdateTurnDebugThread, onUpdateTurnTokens, onAddTurn, onToggleStar, isFavoriteList = false, settings, onCollapseTop }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [refineInput, setRefineInput] = useState('');
   const [isRefining, setIsRefining] = useState(false);
@@ -75,6 +75,7 @@ export const HistoryItem = ({ item, onUpdateTurnDebugThread, onAddTurn, onToggle
                 isFirst={index === 0}
                 isLast={index === item.turns.length - 1}
                 onUpdateDebugThread={(thread) => onUpdateTurnDebugThread && onUpdateTurnDebugThread(index, thread)}
+                onUpdateTokens={(newTokens) => onUpdateTurnTokens && onUpdateTurnTokens(index, newTokens)}
                 onToggleStar={onToggleStar}
                 isFavoriteList={isFavoriteList}
                 settings={settings}

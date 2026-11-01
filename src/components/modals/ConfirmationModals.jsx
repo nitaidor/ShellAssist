@@ -1,5 +1,6 @@
-import React from 'react';
-import { ShieldAlert, AlertCircle, Square, Trash2, Info } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { ShieldAlert, AlertCircle, Square, Trash2, Info, Sparkles, Loader2 } from 'lucide-react';
 
 export const TerminalDisclaimerModal = ({ isOpen, onClose, onConfirm }) => {
   if (!isOpen) return null;
@@ -74,6 +75,76 @@ export const RequiresElevationModal = ({ isOpen, activeShell, isSimulated = fals
         </div>
       </div>
     </div>
+  );
+};
+
+export const DeepTokenBreakdownModal = ({ isOpen, isLoading, onClose, onConfirmDeepAnalysis }) => {
+  useEffect(() => {
+    if (isOpen) {
+      document.documentElement.classList.add('modal-open');
+    } else {
+      document.documentElement.classList.remove('modal-open');
+    }
+    return () => {
+      document.documentElement.classList.remove('modal-open');
+    };
+  }, [isOpen]);
+
+  if (!isOpen || typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
+      onClick={onClose}
+    >
+      <div
+        className="bg-[#161b22] border border-[#30363d] p-6 rounded-xl max-w-lg w-full shadow-2xl animate-in zoom-in-95 duration-150 text-left"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+          <Sparkles className="w-5 h-5 theme-prompt-arrow shrink-0" />
+          Large Script Token Breakdown
+        </h3>
+        <p className="text-gray-300 text-sm mb-3 leading-relaxed">
+          This script contains many statements. Because generating token explanations alongside code requires substantial response data, the AI only annotated the <strong>beginning of the script</strong> before reaching its output limit.
+        </p>
+        <div className="p-3 rounded-md text-xs mb-5 leading-relaxed modal-warning-panel space-y-1.5">
+          <p>
+            • <strong>Keep as-is:</strong> View, copy, run, or download the 100% complete script now. The tail end will have basic syntax tags instead of line-by-line notes.
+          </p>
+          <p>
+            • <strong>Full Deep Breakdown:</strong> Sends a dedicated secondary analysis pass to annotate the rest of the script line-by-line. <em>(Note: This consumes additional API tokens from your provider quota).</em>
+          </p>
+        </div>
+        <div className="flex justify-end gap-3 flex-wrap">
+          <button
+            type="button"
+            disabled={isLoading}
+            onClick={onClose}
+            className="px-4 py-2 rounded-md text-sm font-medium btn-modal-cancel whitespace-nowrap"
+          >
+            Keep As-Is
+          </button>
+          <button
+            type="button"
+            disabled={isLoading}
+            onClick={onConfirmDeepAnalysis}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-md text-sm font-medium transition-colors border border-transparent shadow-sm flex items-center gap-1.5 whitespace-nowrap"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" /> Annotating Full Script...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" /> Generate Full Deep Breakdown
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 };
 

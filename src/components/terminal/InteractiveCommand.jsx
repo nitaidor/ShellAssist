@@ -1,37 +1,93 @@
-import React, { useState } from 'react';
-import { Info, ChevronUp, ChevronDown, ShieldAlert, Lightbulb, Download, Copy, Check } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Info, ChevronUp, ChevronDown, ShieldAlert, Lightbulb, Download, Copy, Check, Sparkles, Loader2, Ban } from 'lucide-react';
 import { getExtension, checkRequiresElevation } from '../../utils/platform';
 import RunActionButton from '../common/RunActionButton';
+import { DeepTokenBreakdownModal } from '../modals/ConfirmationModals';
+import { fetchDeepTokenBreakdown } from '../../services/gemini';
+
+const DEEP_TOKENS_STORAGE_KEY = 'ShellAssist_DeepTokens';
+
+const loadCachedDeepTokens = (cmd) => {
+  if (!cmd || typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(DEEP_TOKENS_STORAGE_KEY);
+    if (!raw) return null;
+    const map = JSON.parse(raw);
+    return map[cmd.trim()] || null;
+  } catch {
+    return null;
+  }
+};
+
+const saveCachedDeepTokens = (cmd, tokensList) => {
+  if (!cmd || !Array.isArray(tokensList) || typeof window === 'undefined') return;
+  try {
+    const raw = window.localStorage.getItem(DEEP_TOKENS_STORAGE_KEY);
+    const map = raw ? JSON.parse(raw) : {};
+    map[cmd.trim()] = tokensList;
+    window.localStorage.setItem(DEEP_TOKENS_STORAGE_KEY, JSON.stringify(map));
+  } catch {}
+};
 
 export const ensureTokenSpacing = (tokens = [], rawCommand = '') => {
+  const cleanCmd = (rawCommand || '').trim();
+
+  // If no tokens provided at all, preserve the exact code with newlines and indentation
   if (!tokens || tokens.length === 0) {
-    if (!rawCommand) return [];
-    return rawCommand.split(/(\s+)/).filter(Boolean).map(part => ({
+    if (!cleanCmd) return [];
+    return cleanCmd.split(/(\r?\n|[ \t]+)/).filter(Boolean).map(part => ({
       text: part,
-      explanation: `Part of ${rawCommand.trim().split(' ')[0]} command`,
-      context: part
+      isWhitespace: /^(\r?\n|[ \t]+)$/.test(part),
+      explanation: 'N/A',
+      context: 'N/A'
     }));
   }
 
+  // 1. Walk the real AI tokens and preserve newlines/indentation exactly as in rawCommand
   const repaired = [];
+  let cmdCursor = 0;
+
   for (let i = 0; i < tokens.length; i++) {
     const cur = tokens[i];
-    repaired.push(cur);
+    if (!cur || !cur.text) continue;
 
-    if (i < tokens.length - 1) {
-      const next = tokens[i + 1];
-      const curEndsWithSpace = /\s$/.test(cur.text);
-      const nextStartsWithSpace = /^\s/.test(next.text);
-      const curIsOperator = /^[|&;><]$/.test(cur.text.trim());
-      const nextIsOperator = /^[|&;><]$/.test(next.text.trim());
+    const curText = cur.text;
+    const foundIdx = cleanCmd.indexOf(curText, cmdCursor);
 
-      if (!curEndsWithSpace && !nextStartsWithSpace) {
-        if (curIsOperator || nextIsOperator || !next.text.startsWith(',')) {
-          repaired.push({ text: ' ', explanation: 'Command argument separator', context: 'Syntax' });
-        }
+    // If there was whitespace or newlines in rawCommand between the last token and this token, preserve it
+    if (foundIdx > cmdCursor) {
+      const intermediate = cleanCmd.substring(cmdCursor, foundIdx);
+      if (/^(\r?\n|[ \t]+)+$/.test(intermediate)) {
+        repaired.push({ text: intermediate, isWhitespace: true });
+      } else if (!/[\s\r\n]$/.test(repaired[repaired.length - 1]?.text || '')) {
+        repaired.push({ text: ' ', isWhitespace: true });
       }
+      cmdCursor = foundIdx;
     }
+
+    repaired.push({
+      ...cur,
+      isWhitespace: false
+    });
+
+    cmdCursor = Math.max(cmdCursor, (foundIdx >= 0 ? foundIdx : cmdCursor) + curText.length);
   }
+
+  // 2. If the AI truncated its tokens array before reaching the end of the script, append the remaining tail as N/A
+  if (cmdCursor < cleanCmd.length) {
+    const remainingTail = cleanCmd.substring(cmdCursor);
+    const tailParts = remainingTail.split(/(\r?\n|[ \t]+)/).filter(Boolean);
+    tailParts.forEach(tp => {
+      const isWs = /^(\r?\n|[ \t]+)$/.test(tp);
+      repaired.push({
+        text: tp,
+        isWhitespace: isWs,
+        explanation: 'N/A',
+        context: 'N/A'
+      });
+    });
+  }
+
   return repaired;
 };
 
@@ -44,6 +100,8 @@ export const InteractiveCommand = ({
   riskExplanation,
   overallExplanation,
   requiresElevation = false,
+  deepBreakdownComplete = false,
+  onUpdateTokens = null,
   runCtx,
   settings,
   onErrorOutput,
@@ -52,6 +110,8 @@ export const InteractiveCommand = ({
   customRunButton = null,
   hideRunButton = false
 }) => {
+  const cachedTokens = loadCachedDeepTokens(command);
+  const [currentTokens, setCurrentTokens] = useState(() => cachedTokens || tokens);
   const [hoveredToken, setHoveredToken] = useState(null);
   const [hoveredIdx, setHoveredIdx] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -59,11 +119,33 @@ export const InteractiveCommand = ({
   const [showRisk, setShowRisk] = useState(false);
   const [inspectorExpanded, setInspectorExpanded] = useState(defaultInspectorExpanded);
 
-  const formattedTokens = ensureTokenSpacing(tokens, command);
+  // Deep token breakdown state + cancellation ref
+  const [showDeepModal, setShowDeepModal] = useState(false);
+  const [isDeepAnalyzing, setIsDeepAnalyzing] = useState(false);
+  const [hasCompletedDeepAnalysis, setHasCompletedDeepAnalysis] = useState(() => Boolean(deepBreakdownComplete || cachedTokens));
+  const deepCancelRef = useRef(0);
+
+  useEffect(() => {
+    const saved = loadCachedDeepTokens(command);
+    if (saved) {
+      setCurrentTokens(saved);
+      setHasCompletedDeepAnalysis(true);
+    } else {
+      setCurrentTokens(tokens);
+      setHasCompletedDeepAnalysis(Boolean(deepBreakdownComplete));
+    }
+  }, [command, tokens, deepBreakdownComplete]);
+
+  const cleanCmd = (command || '').trim();
+  const formattedTokens = ensureTokenSpacing(currentTokens, command);
+
+  // Show "Full Breakdown Available" if any non-whitespace tokens are 'N/A' and deep analysis hasn't been completed yet
+  const hasUnannotatedTokens = formattedTokens.some(t => !t.isWhitespace && t.explanation === 'N/A');
+  const isTruncated = !hasCompletedDeepAnalysis && hasUnannotatedTokens;
+
   const fullCommand = command || formattedTokens.map(t => t.text).join('');
   const needsAdmin = Boolean(requiresElevation || checkRequiresElevation(fullCommand));
 
-  // Prepend elevation notice to the beginning of the risk level description if command requires admin privileges
   const finalRiskExplanation = (() => {
     const baseText = (riskExplanation || '').trim();
     if (!needsAdmin) return baseText;
@@ -101,6 +183,38 @@ export const InteractiveCommand = ({
     URL.revokeObjectURL(url);
   };
 
+  const handleRunDeepAnalysis = async () => {
+    if (!cleanCmd || isDeepAnalyzing) return;
+    const reqId = ++deepCancelRef.current;
+    setIsDeepAnalyzing(true);
+    setShowDeepModal(false);
+
+    try {
+      const deepTokens = await fetchDeepTokenBreakdown(cleanCmd, runCtx, settings);
+      if (deepCancelRef.current !== reqId) return;
+
+      if (Array.isArray(deepTokens) && deepTokens.length > 0) {
+        setCurrentTokens(deepTokens);
+        setHasCompletedDeepAnalysis(true);
+        saveCachedDeepTokens(cleanCmd, deepTokens);
+        if (onUpdateTokens) {
+          onUpdateTokens(deepTokens);
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to complete deep token breakdown:", e);
+    } finally {
+      if (deepCancelRef.current === reqId) {
+        setIsDeepAnalyzing(false);
+      }
+    }
+  };
+
+  const handleCancelDeepAnalysis = () => {
+    deepCancelRef.current++;
+    setIsDeepAnalyzing(false);
+  };
+
   const isHighOrCritical = (level) => {
     const l = (level || '').toLowerCase();
     return l.includes('high') || l.includes('critical') || l.includes('severe') || l.includes('danger');
@@ -130,8 +244,13 @@ export const InteractiveCommand = ({
 
   return (
     <div className="flex flex-col bg-[#161b22] w-full panel-bg">
-      <div className="bg-[#0d1117] p-4 font-mono text-sm leading-relaxed whitespace-pre-wrap relative group cursor-crosshair break-words overflow-x-auto border-b border-[#30363d]">
+      {/* Code Box: Fits exact height for < 12 lines, scrolls smoothly at 12 lines (~19.5rem) */}
+      <div className="bg-[#0d1117] p-4 font-mono text-sm leading-relaxed whitespace-pre-wrap relative group cursor-crosshair break-words overflow-x-auto max-h-[19.5rem] overflow-y-auto border-b border-[#30363d]">
         {formattedTokens.map((token, idx) => {
+          if (token.isWhitespace) {
+            return <span key={idx}>{token.text}</span>;
+          }
+
           const isHovered = hoveredIdx === idx;
           return (
             <span
@@ -158,34 +277,83 @@ export const InteractiveCommand = ({
           onClick={() => setInspectorExpanded(!inspectorExpanded)}
           className="px-4 py-2 bg-[#161b22] hover:bg-[#1c2128] border-b border-[#30363d] flex items-center justify-between cursor-pointer select-none text-xs text-gray-400 transition-colors"
         >
-          <span className="font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5 panel-inspector-title">
-            <Info className="w-3.5 h-3.5 token-inspector-icon" /> Token Inspector (Hover over command to inspect)
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5 panel-inspector-title">
+              <Info className="w-3.5 h-3.5 token-inspector-icon" /> Token Inspector (Hover over command to inspect)
+            </span>
+            {isTruncated && !isDeepAnalyzing && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setShowDeepModal(true); }}
+                className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider btn-deep-token-badge flex items-center gap-1"
+                title="Only the start of this script was annotated. Click to generate full deep breakdown."
+              >
+                <Sparkles className="w-2.5 h-2.5" /> Full Breakdown Available
+              </button>
+            )}
+          </div>
           <div className="flex items-center gap-1 text-[11px]">
             {inspectorExpanded ? <ChevronUp className="w-4 h-4 opacity-75" /> : <ChevronDown className="w-4 h-4 opacity-75" />}
           </div>
         </div>
       )}
       {(!collapsibleInspector || inspectorExpanded) && (
-        <div className="h-32 bg-[#161b22] p-4 border-b border-[#30363d] overflow-y-auto panel-bg animate-in fade-in duration-150">
-          {hoveredToken ? (
+        <div className="min-h-[8rem] h-auto bg-[#161b22] p-4 border-b border-[#30363d] panel-bg animate-in fade-in duration-150">
+          {isDeepAnalyzing ? (
+            <div className="py-6 flex flex-col items-center justify-center text-gray-400 gap-3">
+              <div className="flex items-center gap-2">
+                <Loader2 className="w-5 h-5 animate-spin theme-spinner" />
+                <p className="text-xs font-mono">Annotating full script line-by-line...</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCancelDeepAnalysis}
+                className="btn-cancel-action px-3 py-1 rounded-md font-mono font-medium flex items-center gap-1.5 shadow-sm transition-all text-xs"
+                title="Cancel deep breakdown"
+              >
+                <Ban className="w-3.5 h-3.5 btn-cancel-icon" /> Cancel
+              </button>
+            </div>
+          ) : hoveredToken ? (
             <div className="animate-in fade-in duration-200">
-              <h4 className="text-xs font-bold panel-inspector-title uppercase tracking-wider mb-2">Token Inspector</h4>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-xs font-bold panel-inspector-title uppercase tracking-wider">Token Inspector</h4>
+                {isTruncated && (
+                  <button
+                    type="button"
+                    onClick={() => setShowDeepModal(true)}
+                    className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider btn-deep-token-badge flex items-center gap-1"
+                  >
+                    <Sparkles className="w-2.5 h-2.5" /> Full Breakdown Available
+                  </button>
+                )}
+              </div>
               <div className="flex gap-4">
                 <div className="w-1/2">
                   <span className="text-[10px] text-gray-500 uppercase">What it does:</span>
-                  <p className="text-sm text-gray-300 mt-1">{hoveredToken.explanation}</p>
+                  <p className="text-sm text-gray-300 mt-1 leading-relaxed whitespace-pre-wrap break-words">{hoveredToken.explanation}</p>
                 </div>
                 <div className="w-1/2 border-l border-[#30363d] pl-4">
                   <span className="text-[10px] text-gray-500 uppercase">Context:</span>
-                  <p className="text-sm text-gray-300 mt-1">{hoveredToken.context}</p>
+                  <p className="text-sm text-gray-300 mt-1 leading-relaxed whitespace-pre-wrap break-words">{hoveredToken.context}</p>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-gray-500 gap-2">
-              <Info className="w-5 h-5 token-inspector-icon opacity-50" />
-              <p className="text-sm">Hover over any part of the command above to see its explanation.</p>
+            <div className="py-4 flex flex-col items-center justify-center text-gray-500 gap-2">
+              <div className="flex items-center gap-2">
+                <Info className="w-5 h-5 token-inspector-icon opacity-50" />
+                <p className="text-sm">Hover over any part of the command above to see its explanation.</p>
+              </div>
+              {isTruncated && (
+                <button
+                  type="button"
+                  onClick={() => setShowDeepModal(true)}
+                  className="px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wider btn-deep-token-badge flex items-center gap-1.5 mt-1"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> Full Breakdown Available for this Script
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -251,6 +419,14 @@ export const InteractiveCommand = ({
           <p className="whitespace-pre-wrap leading-relaxed font-mono">{alternativeText}</p>
         </div>
       )}
+
+      {/* Deep Token Breakdown Confirmation Modal */}
+      <DeepTokenBreakdownModal
+        isOpen={showDeepModal}
+        isLoading={isDeepAnalyzing}
+        onClose={() => setShowDeepModal(false)}
+        onConfirmDeepAnalysis={handleRunDeepAnalysis}
+      />
     </div>
   );
 };

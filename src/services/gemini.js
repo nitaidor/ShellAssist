@@ -125,7 +125,10 @@ const callAiProvider = async (systemPrompt, userMessages, settings) => {
           body: JSON.stringify({
             contents,
             systemInstruction: { parts: [{ text: systemPrompt }] },
-            generationConfig: { responseMimeType: "application/json" }
+            generationConfig: {
+              responseMimeType: "application/json",
+              maxOutputTokens: 8192
+            }
           })
         });
       } catch {
@@ -202,7 +205,7 @@ const callAiProvider = async (systemPrompt, userMessages, settings) => {
       },
       body: JSON.stringify({
         model: settings?.claudeModel || CLAUDE_MODEL,
-        max_tokens: 4096,
+        max_tokens: 8192,
         system: systemPrompt + "\nIMPORTANT: Output STRICTLY valid JSON with no markdown wrapping.",
         messages
       })
@@ -269,10 +272,11 @@ export const fetchCommandGeneration = async (requestText, previousTurns = [], ct
     ? `STRUCTURAL FORMAT (MANDATORY): The user selected "Script". You MUST generate standard, readable, multi-line indented code with newlines and proper spacing. Do NOT compress the code into a single line or chain it with semicolons.`
     : `STRUCTURAL FORMAT (MANDATORY): The user selected "Command". You MUST provide a SINGLE-LINE command string suitable for immediate terminal execution (using pipes '|', operators '&&' or ';', or inline loops). Do NOT use multi-line line breaks in the command string.`;
 
+  const tokenRule = `TOKENIZATION RULE (CRITICAL): The "tokens" array must break "command" down into GRANULAR, ATOMIC tokens in sequential order from start to finish: (1) individual cmdlets/commands (e.g. "Get-VM", "ForEach-Object", "Read-Host"), (2) individual flags/parameters (e.g. "-ComputerName", "-First"), (3) individual variables (e.g. "$Server", "$snaps", "$_"), (4) individual keywords (e.g. "if", "else", "switch", "foreach", "param"), (5) individual operators/delimiters (e.g. "=", "-eq", "|", ";", "{", "}"), and (6) individual string/number literals (e.g. "'HQ-SVR1'", "1"). NEVER group a multi-token block, loop body, switch body, or pipeline into one giant token, and NEVER use "..." placeholders.`;
   const nonInteractiveRule = `IMPORTANT: Because commands execute in a non-interactive background bridge that cannot accept mid-execution stdin keystrokes (like [Y/N] prompts), ALWAYS append non-interactive confirmation flags where applicable (e.g., -Confirm:$false, -Force, -y, --yes, --no-input, /y) so the command never hangs waiting for user confirmation.`;
   const elevationRule = `Set "requiresElevation" to true if executing this command on ${cleanOs} typically requires Administrator / root / elevated privileges (e.g., managing Hyper-V VMs like Start-VM/Stop-VM/Get-VM, modifying system services, firewall rules, network adapters, disk partitions, system registry, or sudo operations), otherwise false.`;
 
-  const systemPrompt = `You are an expert ${cleanShell} assistant on ${cleanOs}. ${typeRule} ${nonInteractiveRule} ${elevationRule} Return STRICTLY a JSON object matching this schema: { "summary": "...", "overallExplanation": "...", "command": "...", "tokens": [ { "text": "...", "explanation": "...", "context": "..." } ], "hasAlternative": false, "alternativeText": "", "riskLevel": "Low", "riskExplanation": "", "requiresElevation": false }`;
+  const systemPrompt = `You are an expert ${cleanShell} assistant on ${cleanOs}. ${typeRule} ${tokenRule} ${nonInteractiveRule} ${elevationRule} Return STRICTLY a JSON object matching this schema: { "summary": "...", "overallExplanation": "...", "command": "...", "tokens": [ { "text": "...", "explanation": "...", "context": "..." } ], "hasAlternative": false, "alternativeText": "", "riskLevel": "Low", "riskExplanation": "", "requiresElevation": false }`;
 
   const userMessages = [];
   previousTurns.forEach(t => {
@@ -283,6 +287,30 @@ export const fetchCommandGeneration = async (requestText, previousTurns = [], ct
 
   const raw = await callAiProvider(systemPrompt, userMessages, settings);
   return cleanJsonResponse(raw);
+};
+
+// Dedicated deep analysis pass to annotate large scripts into granular atomic tokens without truncating
+export const fetchDeepTokenBreakdown = async (command, ctx, settingsOrKey = '') => {
+  const settings = typeof settingsOrKey === 'object' ? settingsOrKey : { apiKey: settingsOrKey, apiProvider: 'gemini' };
+  const cleanShell = (ctx?.shell || 'PowerShell').replace(/\s*\(Elevated\)/i, '').trim();
+  const cleanOs = (ctx?.os || 'Windows').replace(/\s*\(Simulated\)/i, '').trim();
+
+  const systemPrompt = `You are a code lexer and documentation expert for ${cleanShell} on ${cleanOs}. 
+Analyze the provided code and return an exhaustive, granular, atomic token breakdown covering 100% of the code from start to finish.
+CRITICAL RULES:
+1. Every token MUST be a single atomic element in sequential order: an individual command/cmdlet, an individual parameter/flag, an individual variable, an individual keyword (if, else, switch, foreach, param, return, continue), an individual operator (=, -eq, |, ;, {, }), or a single string/number literal.
+2. NEVER group a multi-line block, loop body, switch body, or full statement into a single token, and NEVER use "..." placeholders.
+Return STRICTLY a JSON object matching this schema:
+{
+  "tokens": [
+    { "text": "...", "explanation": "Detailed explanation of what this specific token does.", "context": "Command | Parameter | Variable | Keyword | String | Operator | Syntax" }
+  ]
+}`;
+
+  const userMessages = [{ role: "user", text: `Provide an exhaustive atomic token breakdown for this entire code block:\n\n${command}` }];
+  const raw = await callAiProvider(systemPrompt, userMessages, settings);
+  const parsed = cleanJsonResponse(raw);
+  return Array.isArray(parsed?.tokens) ? parsed.tokens : [];
 };
 
 export const fetchInteractiveAutoDebug = async (prompt, failedCommand, fullTerminalTranscript, ctx, settingsOrKey = '') => {
