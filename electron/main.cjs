@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const path = require('path');
 const { exec } = require('child_process');
 const os = require('os');
@@ -90,6 +90,35 @@ function createWindow() {
       nodeIntegration: false
     }
   });
+
+  // Enable native right-click context menu (Cut, Copy, Paste, Select All)
+  win.webContents.on('context-menu', (_event, params) => {
+    const menuTemplate = [];
+
+    if (params.isEditable) {
+      menuTemplate.push(
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { type: 'separator' },
+        { role: 'selectAll' }
+      );
+    } else {
+      if (params.selectionText && params.selectionText.trim().length > 0) {
+        menuTemplate.push({ role: 'copy' }, { type: 'separator' });
+      }
+      menuTemplate.push({ role: 'selectAll' });
+    }
+
+    if (menuTemplate.length > 0) {
+      const menu = Menu.buildFromTemplate(menuTemplate);
+      menu.popup({ window: win });
+    }
+  });
+
   win.loadFile(path.join(__dirname, '../dist/index.html'));
 }
 
