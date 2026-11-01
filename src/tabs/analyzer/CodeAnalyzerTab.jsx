@@ -41,6 +41,17 @@ export const CodeAnalyzerTab = ({
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    
+    // Strict extension validation fallback in case OS file-picker bypass is used
+    const ext = file.name.slice((Math.max(0, file.name.lastIndexOf(".")) || Infinity) + 1).toLowerCase();
+    const validExts = ['ps1', 'bat', 'cmd', 'sh', 'zsh', 'tf', 'yml', 'yaml', 'txt'];
+    if (!validExts.includes(ext)) {
+      setAnalyzerError(`Unsupported file extension: .${ext}. Please upload a supported script format.`);
+      e.target.value = null;
+      return;
+    }
+
+    setAnalyzerError(null);
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target.result;
@@ -106,6 +117,10 @@ export const CodeAnalyzerTab = ({
       const result = await fetchCommandGeneration(payload, [], currentCtx, 'code-to-en', false, settings);
       if (cancelAnalyzerRef.current !== genId) return;
 
+      // Analysis succeeded, now we can remove the file and text from the top window
+      setUploadedFile(null);
+      setAnalyzerInput('');
+
       const newTurn = {
         ...result,
         id: generateId(),
@@ -126,7 +141,6 @@ export const CodeAnalyzerTab = ({
         },
         ...prev.filter(h => h.id !== newTurn.id)
       ]);
-      setAnalyzerInput('');
     } catch (err) {
       if (cancelAnalyzerRef.current !== genId) return;
       setAnalyzerError(err.message || "Failed connection to AI provider.");
@@ -165,10 +179,14 @@ export const CodeAnalyzerTab = ({
               <textarea
                 ref={analyzerInputRef}
                 disabled={!!uploadedFile}
-                value={uploadedFile ? `📄 ${uploadedFile.name} (Uploaded Script Locked)` : analyzerInput}
+                value={uploadedFile ? `Attached: ${uploadedFile.name} (Uploaded Script Locked)` : analyzerInput}
                 onChange={(e) => setAnalyzerInput(e.target.value)}
                 placeholder={`e.g., Paste your code here to analyze...`}
-                className={`w-full h-28 border rounded-md p-4 font-mono text-sm focus:outline-none resize-none shadow-sm mt-3 ${uploadedFile ? 'bg-[#161b22] border-[#30363d] text-gray-500 opacity-70 cursor-not-allowed' : 'bg-[#0d1117] border-[#30363d] text-gray-200 focus:border-green-500'}`}
+                className={`w-full h-28 bg-[#0d1117] border border-[#30363d] rounded-md p-4 font-mono text-sm focus:outline-none resize-none shadow-sm mt-3 transition-colors ${
+                  uploadedFile 
+                    ? 'text-gray-500 cursor-not-allowed' 
+                    : 'text-gray-200 focus:border-green-500'
+                }`}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -196,9 +214,9 @@ export const CodeAnalyzerTab = ({
                   <input type="file" ref={fileInputRef} className="hidden" accept=".ps1,.bat,.cmd,.sh,.zsh,.tf,.yml,.yaml,.txt" onChange={handleFileUpload} />
                   <button
                     onClick={() => uploadedFile ? handleRemoveFile() : fileInputRef.current.click()}
-                    className={`px-3 py-2 rounded-md text-xs font-semibold uppercase tracking-wider flex items-center gap-2 border transition-colors shadow-sm h-10 ${uploadedFile ? 'bg-red-900/20 border-red-500/50 text-red-400 hover:bg-red-900/40' : 'bg-[#21262d] border-[#30363d] text-gray-300 hover:text-white'}`}
+                    className="px-3 py-2 rounded-md text-xs font-semibold uppercase tracking-wider flex items-center gap-2 border transition-colors shadow-sm h-10 bg-[#161b22] border-[#30363d] text-gray-300 hover:bg-[#21262d] hover:text-white"
                   >
-                    {uploadedFile ? <FileMinus className="w-4 h-4" /> : <FileUp className="w-4 h-4" />}
+                    {uploadedFile ? <FileMinus className="w-4 h-4 btn-cancel-icon" /> : <FileUp className="w-4 h-4" />}
                     {uploadedFile ? 'Remove Script' : 'Upload Script'}
                   </button>
                 </div>
@@ -218,7 +236,7 @@ export const CodeAnalyzerTab = ({
                 className="w-full h-12 bg-[#0d1117] border border-[#30363d] hover:border-green-500 rounded-md px-4 flex items-center justify-between text-sm font-mono cursor-text shadow-sm transition-colors"
               >
                 <span className="truncate collapsed-placeholder-text" style={{ color: getCollapsedSuggestionColor() }}>
-                  {uploadedFile ? `📄 ${uploadedFile.name}` : (analyzerInput ? analyzerInput : `e.g., Paste your code here to analyze...`)}
+                  {uploadedFile ? `Attached: ${uploadedFile.name}` : (analyzerInput ? analyzerInput : `e.g., Paste your code here to analyze...`)}
                 </span>
               </div>
             </div>

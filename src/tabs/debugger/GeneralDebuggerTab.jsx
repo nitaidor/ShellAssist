@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Bug, AlertCircle, Loader2, History as HistoryIcon, Trash2, Search, ChevronDown, X, Ban, FileUp, FileMinus, FileCode2 } from 'lucide-react';
+import { Bug, AlertCircle, Loader2, History as HistoryIcon, Trash2, Search, ChevronDown, X, Ban, FileUp, FileMinus } from 'lucide-react';
 import CustomSelect from '../../components/common/CustomSelect';
 import ContextTags from '../../components/common/ContextTags';
 import DebugMessage from '../../components/terminal/DebugMessage';
@@ -43,6 +43,17 @@ export const GeneralDebuggerTab = ({
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    // Strict extension validation fallback in case OS file-picker bypass is used
+    const ext = file.name.slice((Math.max(0, file.name.lastIndexOf(".")) || Infinity) + 1).toLowerCase();
+    const validExts = ['ps1', 'bat', 'cmd', 'sh', 'zsh', 'tf', 'yml', 'yaml', 'txt'];
+    if (!validExts.includes(ext)) {
+      setDebugError(`Unsupported file extension: .${ext}. Please upload a supported script format.`);
+      e.target.value = null;
+      return;
+    }
+
+    setDebugError(null);
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target.result;
@@ -109,6 +120,10 @@ export const GeneralDebuggerTab = ({
       const result = await fetchStandaloneDebug([{ role: "user", text: combinedInput }], currentCtx, settings);
       if (cancelDebuggerRef.current !== genId) return;
 
+      // Debugging succeeded, now we can remove the file and text from the top window
+      setUploadedFile(null);
+      setNewStandaloneInput('');
+
       const initialThread = [
         { role: "user", text: combinedInput },
         { role: "model", text: result.analysis }
@@ -116,7 +131,6 @@ export const GeneralDebuggerTab = ({
       setActiveStandaloneSummary(result.summary);
       setActiveStandaloneCtx(currentCtx);
       setActiveStandaloneThread(initialThread);
-      setNewStandaloneInput('');
 
       setDebugHistory(prev => [
         {
@@ -210,19 +224,12 @@ export const GeneralDebuggerTab = ({
                 </div>
               </div>
               
-              {uploadedFile && (
-                <div className="flex items-center gap-2 mb-2 bg-[#21262d] border border-[#30363d] w-fit px-3 py-1.5 rounded text-xs font-mono text-gray-300 shadow-sm mt-3">
-                  <FileCode2 className="w-3.5 h-3.5 icon-debugger" />
-                  Attached: {uploadedFile.name}
-                </div>
-              )}
-              
               <textarea
                 ref={debuggerInputRef}
                 value={newStandaloneInput}
                 onChange={(e) => setNewStandaloneInput(e.target.value)}
                 placeholder={`e.g., Paste the error output from your ${debugCtx.shell} terminal here...`}
-                className={`w-full h-28 bg-[#0d1117] border border-[#30363d] focus:border-red-500 rounded-md p-4 font-mono text-sm text-gray-200 focus:outline-none resize-none shadow-sm ${!uploadedFile ? 'mt-3' : ''}`}
+                className="w-full h-28 bg-[#0d1117] border border-[#30363d] focus:border-red-500 rounded-md p-4 font-mono text-sm text-gray-200 focus:outline-none resize-none shadow-sm mt-3"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -250,9 +257,9 @@ export const GeneralDebuggerTab = ({
                   <input type="file" ref={fileInputRef} className="hidden" accept=".ps1,.bat,.cmd,.sh,.zsh,.tf,.yml,.yaml,.txt" onChange={handleFileUpload} />
                   <button
                     onClick={() => uploadedFile ? handleRemoveFile() : fileInputRef.current.click()}
-                    className={`px-3 py-2 rounded-md text-xs font-semibold uppercase tracking-wider flex items-center gap-2 border transition-colors shadow-sm h-10 ${uploadedFile ? 'bg-red-900/20 border-red-500/50 text-red-400 hover:bg-red-900/40' : 'bg-[#21262d] border-[#30363d] text-gray-300 hover:text-white'}`}
+                    className="px-3 py-2 rounded-md text-xs font-semibold uppercase tracking-wider flex items-center gap-2 border transition-colors shadow-sm h-10 bg-[#161b22] border-[#30363d] text-gray-300 hover:bg-[#21262d] hover:text-white"
                   >
-                    {uploadedFile ? <FileMinus className="w-4 h-4" /> : <FileUp className="w-4 h-4" />}
+                    {uploadedFile ? <FileMinus className="w-4 h-4 btn-cancel-icon" /> : <FileUp className="w-4 h-4" />}
                     {uploadedFile ? 'Remove Script' : 'Upload Script'}
                   </button>
                 </div>
