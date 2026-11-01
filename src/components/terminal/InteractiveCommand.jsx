@@ -130,7 +130,7 @@ export const InteractiveCommand = ({
 
   return (
     <div className="flex flex-col bg-[#161b22] w-full panel-bg">
-      <div className="bg-[#0d1117] p-4 font-mono text-sm leading-relaxed whitespace-pre-wrap relative group cursor-crosshair break-all border-b border-[#30363d]">
+      <div className="bg-[#0d1117] p-4 font-mono text-sm leading-relaxed whitespace-pre-wrap relative group cursor-crosshair break-words overflow-x-auto border-b border-[#30363d]">
         {formattedTokens.map((token, idx) => {
           const isHovered = hoveredIdx === idx;
           return (

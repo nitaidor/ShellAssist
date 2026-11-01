@@ -262,11 +262,17 @@ export const fetchCommandGeneration = async (requestText, previousTurns = [], ct
   const settings = typeof settingsOrKey === 'object' ? settingsOrKey : { apiKey: settingsOrKey, apiProvider: 'gemini' };
   const cleanShell = (ctx?.shell || 'PowerShell').replace(/\s*\(Elevated\)/i, '').trim();
   const cleanOs = (ctx?.os || 'Windows').replace(/\s*\(Simulated\)/i, '').trim();
+  const isScript = ctx?.type === 'Script';
+
+  // Strict structural differentiation: Commands must be single-line one-liners; Scripts must be multi-line readable code blocks
+  const typeRule = isScript
+    ? `STRUCTURAL FORMAT (MANDATORY): The user selected "Script". You MUST generate standard, readable, multi-line indented code with newlines and proper spacing. Do NOT compress the code into a single line or chain it with semicolons.`
+    : `STRUCTURAL FORMAT (MANDATORY): The user selected "Command". You MUST provide a SINGLE-LINE command string suitable for immediate terminal execution (using pipes '|', operators '&&' or ';', or inline loops). Do NOT use multi-line line breaks in the command string.`;
 
   const nonInteractiveRule = `IMPORTANT: Because commands execute in a non-interactive background bridge that cannot accept mid-execution stdin keystrokes (like [Y/N] prompts), ALWAYS append non-interactive confirmation flags where applicable (e.g., -Confirm:$false, -Force, -y, --yes, --no-input, /y) so the command never hangs waiting for user confirmation.`;
   const elevationRule = `Set "requiresElevation" to true if executing this command on ${cleanOs} typically requires Administrator / root / elevated privileges (e.g., managing Hyper-V VMs like Start-VM/Stop-VM/Get-VM, modifying system services, firewall rules, network adapters, disk partitions, system registry, or sudo operations), otherwise false.`;
 
-  const systemPrompt = `You are an expert ${cleanShell} assistant on ${cleanOs}. ${nonInteractiveRule} ${elevationRule} Return STRICTLY a JSON object matching this schema: { "summary": "...", "overallExplanation": "...", "command": "...", "tokens": [ { "text": "...", "explanation": "...", "context": "..." } ], "hasAlternative": false, "alternativeText": "", "riskLevel": "Low", "riskExplanation": "", "requiresElevation": false }`;
+  const systemPrompt = `You are an expert ${cleanShell} assistant on ${cleanOs}. ${typeRule} ${nonInteractiveRule} ${elevationRule} Return STRICTLY a JSON object matching this schema: { "summary": "...", "overallExplanation": "...", "command": "...", "tokens": [ { "text": "...", "explanation": "...", "context": "..." } ], "hasAlternative": false, "alternativeText": "", "riskLevel": "Low", "riskExplanation": "", "requiresElevation": false }`;
 
   const userMessages = [];
   previousTurns.forEach(t => {
