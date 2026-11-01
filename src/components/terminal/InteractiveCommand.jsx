@@ -298,9 +298,10 @@ export const InteractiveCommand = ({
         </div>
       )}
       {(!collapsibleInspector || inspectorExpanded) && (
-        <div className="min-h-[8rem] h-auto bg-[#161b22] p-4 border-b border-[#30363d] panel-bg animate-in fade-in duration-150">
+        /* Anchored stable height (min-h-[8.5rem]), smoothly expands downward only if an explanation is exceptionally long */
+        <div className="min-h-[8.5rem] h-auto bg-[#161b22] p-4 border-b border-[#30363d] panel-bg flex flex-col justify-center animate-in fade-in duration-150">
           {isDeepAnalyzing ? (
-            <div className="py-6 flex flex-col items-center justify-center text-gray-400 gap-3">
+            <div className="py-4 flex flex-col items-center justify-center text-gray-400 gap-3">
               <div className="flex items-center gap-2">
                 <Loader2 className="w-5 h-5 animate-spin theme-spinner" />
                 <p className="text-xs font-mono">Annotating full script line-by-line...</p>
@@ -340,7 +341,7 @@ export const InteractiveCommand = ({
               </div>
             </div>
           ) : (
-            <div className="py-4 flex flex-col items-center justify-center text-gray-500 gap-2">
+            <div className="flex flex-col items-center justify-center text-gray-500 gap-2">
               <div className="flex items-center gap-2">
                 <Info className="w-5 h-5 token-inspector-icon opacity-50" />
                 <p className="text-sm">Hover over any part of the command above to see its explanation.</p>
