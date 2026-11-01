@@ -31,6 +31,22 @@ export const getExtension = (shell = '') => {
   return '.sh'; 
 };
 
+// NEW: Maps uploaded files to specific Shells and restricts valid OS options
+export const getContextFromFileExtension = (filename) => {
+  const ext = filename.slice((Math.max(0, filename.lastIndexOf(".")) || Infinity) + 1).toLowerCase();
+  switch(ext) {
+    case 'ps1': return { shell: 'PowerShell', validOs: ['Windows', 'macOS', 'Linux'] };
+    case 'bat':
+    case 'cmd': return { shell: 'CMD', validOs: ['Windows'] };
+    case 'sh': return { shell: 'Bash', validOs: ['Linux', 'macOS'] };
+    case 'zsh': return { shell: 'Zsh', validOs: ['macOS', 'Linux'] };
+    case 'tf': return { shell: 'Terraform CLI', validOs: ['Terraform'] };
+    case 'yml':
+    case 'yaml': return { shell: 'Docker Compose', validOs: ['Docker'] };
+    default: return null;
+  }
+};
+
 export const generateId = () => Math.random().toString(36).substring(2, 9);
 
 export const checkRequiresElevation = (cmd = '') => {
@@ -90,7 +106,6 @@ export const checkRequiresElevation = (cmd = '') => {
   );
 };
 
-// Formats timestamp into Date + Time adhering to user clock preference (12h AM/PM vs 24h)
 export const formatSessionDate = (dateOrUnix, clockFormat = '12h') => {
   if (!dateOrUnix) return '';
   const d = typeof dateOrUnix === 'number' ? new Date(dateOrUnix) : new Date(dateOrUnix);
@@ -109,7 +124,6 @@ export const formatSessionDate = (dateOrUnix, clockFormat = '12h') => {
   });
 };
 
-// Dynamically converts bracketed [HH:MM:SS AM/PM] or [HH:MM:SS] timestamps in terminal transcripts to 12h or 24h
 export const formatTranscriptTimestamps = (transcript = '', clockFormat = '12h') => {
   if (!transcript) return '';
   const is24h = clockFormat === '24h';

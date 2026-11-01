@@ -1,11 +1,12 @@
 import React, { useState, useRef } from 'react';
-import { Code, Loader2, Trash2, Search, ChevronDown, AlertCircle, X, Ban } from 'lucide-react';
-import ContextDropdowns from '../../components/common/ContextDropdowns';
+import { Code, Loader2, Trash2, Search, ChevronDown, AlertCircle, X, Ban, FileUp, FileMinus } from 'lucide-react';
+import CustomSelect from '../../components/common/CustomSelect';
 import ContextTags from '../../components/common/ContextTags';
 import InteractiveCommand from '../../components/terminal/InteractiveCommand';
 import AnalyzerHistoryItem from './AnalyzerHistoryItem';
-import { generateId, formatSessionDate } from '../../utils/platform';
+import { generateId, getContextFromFileExtension } from '../../utils/platform';
 import { fetchCommandGeneration } from '../../services/gemini';
+import { OS_OPTIONS, SHELL_OPTIONS } from '../../constants/environment';
 
 export const CodeAnalyzerTab = ({
   settings,
@@ -17,7 +18,9 @@ export const CodeAnalyzerTab = ({
   getCollapsedSuggestionColor
 }) => {
   const analyzerInputRef = useRef(null);
-  const [analyzerCtx, setAnalyzerCtx] = useState({ os: 'Windows', shell: 'PowerShell', type: 'Command' });
+  const fileInputRef = useRef(null);
+  const [analyzerCtx, setAnalyzerCtx] = useState({ os: 'Windows', shell: 'PowerShell' });
+  const [uploadedFile, setUploadedFile] = useState(null);
   const [isAnalyzerExpanded, setIsAnalyzerExpanded] = useState(true);
   const [analyzerInput, setAnalyzerInput] = useState('');
   const [isAnalyzerRunning, setIsAnalyzerRunning] = useState(false);
@@ -30,15 +33,46 @@ export const CodeAnalyzerTab = ({
 
   const expandAnalyzer = () => {
     setIsAnalyzerExpanded(true);
-    setTimeout(() => analyzerInputRef.current?.focus(), 50);
+    setTimeout(() => {
+      if (!uploadedFile) analyzerInputRef.current?.focus();
+    }, 50);
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target.result;
+      const mapping = getContextFromFileExtension(file.name);
+      
+      setUploadedFile({ 
+        name: file.name, 
+        content, 
+        validOs: mapping ? mapping.validOs : OS_OPTIONS.filter(o => o !== '──────────'), 
+        shell: mapping ? mapping.shell : analyzerCtx.shell 
+      });
+      
+      if (mapping) {
+        const newOs = mapping.validOs.includes(analyzerCtx.os) ? analyzerCtx.os : mapping.validOs[0];
+        setAnalyzerCtx({ os: newOs, shell: mapping.shell });
+      }
+      setAnalyzerInput('');
+    };
+    reader.readAsText(file);
+    e.target.value = null; 
+  };
+
+  const handleRemoveFile = () => {
+    setUploadedFile(null);
   };
 
   const handleCancelAnalyzer = () => {
-    cancelAnalyzerRef.current++; // Invalidate pending promise so late response is discarded
+    cancelAnalyzerRef.current++; 
     setIsAnalyzerRunning(false);
     if (!activeAnalyzerTurn) {
       setIsAnalyzerExpanded(true);
-      if (lastRequestedAnalyzerPromptRef.current && !analyzerInput) {
+      if (lastRequestedAnalyzerPromptRef.current && !analyzerInput && !uploadedFile) {
         setAnalyzerInput(lastRequestedAnalyzerPromptRef.current);
       }
     }
@@ -55,10 +89,12 @@ export const CodeAnalyzerTab = ({
   };
 
   const startNewAnalyzerSession = async () => {
-    if (!analyzerInput.trim()) return;
-    const currentInput = analyzerInput;
-    lastRequestedAnalyzerPromptRef.current = currentInput;
-    const currentCtx = { ...analyzerCtx };
+    const payload = uploadedFile ? uploadedFile.content : analyzerInput;
+    if (!payload.trim()) return;
+    
+    lastRequestedAnalyzerPromptRef.current = payload;
+    const isScript = !!uploadedFile || payload.includes('\n');
+    const currentCtx = { ...analyzerCtx, type: isScript ? 'Script' : 'Command' };
 
     const genId = ++cancelAnalyzerRef.current;
     setAnalyzerError(null);
@@ -67,13 +103,13 @@ export const CodeAnalyzerTab = ({
     setIsAnalyzerRunning(true);
 
     try {
-      const result = await fetchCommandGeneration(currentInput, [], currentCtx, 'code-to-en', false, settings);
+      const result = await fetchCommandGeneration(payload, [], currentCtx, 'code-to-en', false, settings);
       if (cancelAnalyzerRef.current !== genId) return;
 
       const newTurn = {
         ...result,
         id: generateId(),
-        prompt: currentInput,
+        prompt: payload,
         ctx: currentCtx,
         debugThread: [],
         mode: 'code-to-en'
@@ -103,6 +139,9 @@ export const CodeAnalyzerTab = ({
 
   const displayAnalyzerHistory = analyzerHistory.filter(s => s.id !== activeAnalyzerTurn?.id);
 
+  const validOsOptions = uploadedFile ? uploadedFile.validOs : OS_OPTIONS;
+  const validShellOptions = uploadedFile ? [uploadedFile.shell] : (SHELL_OPTIONS[analyzerCtx.os] || []);
+
   return (
     <>
       <section className="space-y-6">
@@ -118,16 +157,18 @@ export const CodeAnalyzerTab = ({
                     <Code className="w-5 h-5 shrink-0 icon-analyzer" /> Analyze Code
                   </h2>
                   <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                    Paste any script or command here for a token-by-token explanation.
+                    Paste any code or upload a script file for a token-by-token explanation.
                   </p>
                 </div>
               </div>
+              
               <textarea
                 ref={analyzerInputRef}
-                value={analyzerInput}
+                disabled={!!uploadedFile}
+                value={uploadedFile ? `📄 ${uploadedFile.name} (Uploaded Script Locked)` : analyzerInput}
                 onChange={(e) => setAnalyzerInput(e.target.value)}
-                placeholder={`e.g., Paste your ${analyzerCtx.shell} ${analyzerCtx.type.toLowerCase()} here to analyze...`}
-                className="w-full h-28 bg-[#0d1117] border border-[#30363d] rounded-md p-4 font-mono text-sm text-gray-200 focus:outline-none focus:border-green-500 resize-none shadow-sm mt-3"
+                placeholder={`e.g., Paste your code here to analyze...`}
+                className={`w-full h-28 border rounded-md p-4 font-mono text-sm focus:outline-none resize-none shadow-sm mt-3 ${uploadedFile ? 'bg-[#161b22] border-[#30363d] text-gray-500 opacity-70 cursor-not-allowed' : 'bg-[#0d1117] border-[#30363d] text-gray-200 focus:border-green-500'}`}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -137,11 +178,33 @@ export const CodeAnalyzerTab = ({
               />
               <div className="mt-4 flex flex-col md:flex-row justify-between items-center gap-4">
                 <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                  <ContextDropdowns ctx={analyzerCtx} setCtx={setAnalyzerCtx} />
+                  <CustomSelect
+                    value={analyzerCtx.os}
+                    onChange={(newOs) => {
+                      if (newOs === '──────────') return;
+                      const shells = SHELL_OPTIONS[newOs] || [];
+                      setAnalyzerCtx({ ...analyzerCtx, os: newOs, shell: shells.includes(analyzerCtx.shell) ? analyzerCtx.shell : shells[0] });
+                    }}
+                    options={validOsOptions}
+                  />
+                  <CustomSelect
+                    value={analyzerCtx.shell}
+                    onChange={(newShell) => setAnalyzerCtx({ ...analyzerCtx, shell: newShell })}
+                    options={validShellOptions}
+                    disabled={!!uploadedFile}
+                  />
+                  <input type="file" ref={fileInputRef} className="hidden" accept=".ps1,.bat,.cmd,.sh,.zsh,.tf,.yml,.yaml,.txt" onChange={handleFileUpload} />
+                  <button
+                    onClick={() => uploadedFile ? handleRemoveFile() : fileInputRef.current.click()}
+                    className={`px-3 py-2 rounded-md text-xs font-semibold uppercase tracking-wider flex items-center gap-2 border transition-colors shadow-sm h-10 ${uploadedFile ? 'bg-red-900/20 border-red-500/50 text-red-400 hover:bg-red-900/40' : 'bg-[#21262d] border-[#30363d] text-gray-300 hover:text-white'}`}
+                  >
+                    {uploadedFile ? <FileMinus className="w-4 h-4" /> : <FileUp className="w-4 h-4" />}
+                    {uploadedFile ? 'Remove Script' : 'Upload Script'}
+                  </button>
                 </div>
                 <button
                   onClick={startNewAnalyzerSession}
-                  disabled={isAnalyzerRunning || !analyzerInput.trim()}
+                  disabled={isAnalyzerRunning || (!uploadedFile && !analyzerInput.trim())}
                   className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-900 disabled:opacity-50 text-white px-5 rounded-md font-medium text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 w-full md:w-auto shrink-0 h-10 min-w-[160px] border border-transparent"
                 >
                   {isAnalyzerRunning ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Code className="w-4 h-4" /> Analyze Code</>}
@@ -155,7 +218,7 @@ export const CodeAnalyzerTab = ({
                 className="w-full h-12 bg-[#0d1117] border border-[#30363d] hover:border-green-500 rounded-md px-4 flex items-center justify-between text-sm font-mono cursor-text shadow-sm transition-colors"
               >
                 <span className="truncate collapsed-placeholder-text" style={{ color: getCollapsedSuggestionColor() }}>
-                  {analyzerInput ? analyzerInput : `e.g., Paste your ${analyzerCtx.shell} ${analyzerCtx.type.toLowerCase()} here to analyze...`}
+                  {uploadedFile ? `📄 ${uploadedFile.name}` : (analyzerInput ? analyzerInput : `e.g., Paste your code here to analyze...`)}
                 </span>
               </div>
             </div>
@@ -181,12 +244,11 @@ export const CodeAnalyzerTab = ({
           </div>
         )}
 
-        {/* Loading Spinner with Cancel Button */}
         {isAnalyzerRunning && (
           <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-10 flex flex-col items-center justify-center text-gray-400 shadow-md mt-6 animate-in fade-in duration-200 gap-3">
             <div className="flex flex-col items-center">
               <Loader2 className="w-8 h-8 animate-spin mb-3 icon-analyzer" />
-              <p className="text-sm">Analyzing {analyzerCtx.type.toLowerCase()}...</p>
+              <p className="text-sm">Analyzing code...</p>
             </div>
             <button
               type="button"
@@ -215,6 +277,7 @@ export const CodeAnalyzerTab = ({
               riskLevel={activeAnalyzerTurn.riskLevel}
               riskExplanation={activeAnalyzerTurn.riskExplanation}
               overallExplanation={activeAnalyzerTurn.overallExplanation}
+              requiresElevation={activeAnalyzerTurn.requiresElevation}
               deepBreakdownComplete={Boolean(activeAnalyzerTurn.deepBreakdownComplete)}
               onUpdateTokens={(newTokens) => handleUpdateAnalyzerTokens(activeAnalyzerTurn.id, newTokens)}
               runCtx={activeAnalyzerTurn.ctx}

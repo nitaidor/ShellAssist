@@ -1,11 +1,12 @@
 import React, { useState, useRef } from 'react';
-import { Bug, AlertCircle, Loader2, History as HistoryIcon, Trash2, Search, ChevronDown, X, Ban } from 'lucide-react';
-import ContextDropdowns from '../../components/common/ContextDropdowns';
+import { Bug, AlertCircle, Loader2, History as HistoryIcon, Trash2, Search, ChevronDown, X, Ban, FileUp, FileMinus, FileCode2 } from 'lucide-react';
+import CustomSelect from '../../components/common/CustomSelect';
 import ContextTags from '../../components/common/ContextTags';
 import DebugMessage from '../../components/terminal/DebugMessage';
 import StandaloneHistoryItem from './StandaloneHistoryItem';
 import { fetchStandaloneDebug } from '../../services/gemini';
-import { generateId, formatSessionDate } from '../../utils/platform';
+import { generateId, getContextFromFileExtension } from '../../utils/platform';
+import { OS_OPTIONS, SHELL_OPTIONS } from '../../constants/environment';
 
 export const GeneralDebuggerTab = ({
   settings,
@@ -17,7 +18,9 @@ export const GeneralDebuggerTab = ({
   getCollapsedSuggestionColor
 }) => {
   const debuggerInputRef = useRef(null);
-  const [debugCtx, setDebugCtx] = useState({ os: 'Windows', shell: 'PowerShell', type: 'Command' });
+  const fileInputRef = useRef(null);
+  const [debugCtx, setDebugCtx] = useState({ os: 'Windows', shell: 'PowerShell' });
+  const [uploadedFile, setUploadedFile] = useState(null);
   const [isDebuggerExpanded, setIsDebuggerExpanded] = useState(true);
   const [newStandaloneInput, setNewStandaloneInput] = useState('');
   const [followUpStandaloneInput, setFollowUpStandaloneInput] = useState('');
@@ -37,12 +40,40 @@ export const GeneralDebuggerTab = ({
     setTimeout(() => debuggerInputRef.current?.focus(), 50);
   };
 
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target.result;
+      const mapping = getContextFromFileExtension(file.name);
+      
+      setUploadedFile({ 
+        name: file.name, 
+        content, 
+        validOs: mapping ? mapping.validOs : OS_OPTIONS.filter(o => o !== '──────────'), 
+        shell: mapping ? mapping.shell : debugCtx.shell 
+      });
+      
+      if (mapping) {
+        const newOs = mapping.validOs.includes(debugCtx.os) ? debugCtx.os : mapping.validOs[0];
+        setDebugCtx({ os: newOs, shell: mapping.shell });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = null; 
+  };
+
+  const handleRemoveFile = () => {
+    setUploadedFile(null);
+  };
+
   const handleCancelInitialDebug = () => {
     cancelDebuggerRef.current++;
     setIsStandaloneDebugging(false);
     if (activeStandaloneThread.length === 0) {
       setIsDebuggerExpanded(true);
-      if (lastRequestedDebugInputRef.current && !newStandaloneInput) {
+      if (lastRequestedDebugInputRef.current && !newStandaloneInput && !uploadedFile) {
         setNewStandaloneInput(lastRequestedDebugInputRef.current);
       }
     }
@@ -54,10 +85,16 @@ export const GeneralDebuggerTab = ({
   };
 
   const startNewStandaloneSession = async () => {
-    if (!newStandaloneInput.trim()) return;
-    const currentInput = newStandaloneInput;
-    lastRequestedDebugInputRef.current = currentInput;
-    const currentCtx = { ...debugCtx };
+    if (!newStandaloneInput.trim() && !uploadedFile) return;
+    
+    const combinedInput = uploadedFile 
+      ? `Script Content:\n\`\`\`\n${uploadedFile.content}\n\`\`\`\n\nTerminal/Error Output:\n${newStandaloneInput}`
+      : newStandaloneInput;
+      
+    lastRequestedDebugInputRef.current = newStandaloneInput;
+    
+    const isScript = !!uploadedFile || newStandaloneInput.includes('\n');
+    const currentCtx = { ...debugCtx, type: isScript ? 'Script' : 'Command' };
 
     const genId = ++cancelDebuggerRef.current;
     setDebugError(null);
@@ -69,11 +106,11 @@ export const GeneralDebuggerTab = ({
     setIsStandaloneDebugging(true);
 
     try {
-      const result = await fetchStandaloneDebug([{ role: "user", text: currentInput }], currentCtx, settings);
+      const result = await fetchStandaloneDebug([{ role: "user", text: combinedInput }], currentCtx, settings);
       if (cancelDebuggerRef.current !== genId) return;
 
       const initialThread = [
-        { role: "user", text: currentInput },
+        { role: "user", text: combinedInput },
         { role: "model", text: result.analysis }
       ];
       setActiveStandaloneSummary(result.summary);
@@ -150,6 +187,8 @@ export const GeneralDebuggerTab = ({
   }
 
   const displayDebugHistory = debugHistory.filter(s => s.id !== activeDebugSessionId);
+  const validOsOptions = uploadedFile ? uploadedFile.validOs : OS_OPTIONS;
+  const validShellOptions = uploadedFile ? [uploadedFile.shell] : (SHELL_OPTIONS[debugCtx.os] || []);
 
   return (
     <>
@@ -166,16 +205,24 @@ export const GeneralDebuggerTab = ({
                     <Bug className="w-5 h-5 shrink-0 icon-debugger" /> Analyze Issue
                   </h2>
                   <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                    Paste any error or console output here to start a new debug session.
+                    Attach a script and paste any error or console output here to start a new debug session.
                   </p>
                 </div>
               </div>
+              
+              {uploadedFile && (
+                <div className="flex items-center gap-2 mb-2 bg-[#21262d] border border-[#30363d] w-fit px-3 py-1.5 rounded text-xs font-mono text-gray-300 shadow-sm mt-3">
+                  <FileCode2 className="w-3.5 h-3.5 icon-debugger" />
+                  Attached: {uploadedFile.name}
+                </div>
+              )}
+              
               <textarea
                 ref={debuggerInputRef}
                 value={newStandaloneInput}
                 onChange={(e) => setNewStandaloneInput(e.target.value)}
                 placeholder={`e.g., Paste the error output from your ${debugCtx.shell} terminal here...`}
-                className="w-full h-28 bg-[#0d1117] border border-[#30363d] rounded-md p-4 font-mono text-sm text-gray-200 focus:outline-none focus:border-red-500 resize-none shadow-sm mt-3"
+                className={`w-full h-28 bg-[#0d1117] border border-[#30363d] focus:border-red-500 rounded-md p-4 font-mono text-sm text-gray-200 focus:outline-none resize-none shadow-sm ${!uploadedFile ? 'mt-3' : ''}`}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -185,12 +232,34 @@ export const GeneralDebuggerTab = ({
               />
               <div className="mt-4 flex flex-col md:flex-row justify-between items-center gap-4">
                 <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                  <ContextDropdowns ctx={debugCtx} setCtx={setDebugCtx} />
+                  <CustomSelect
+                    value={debugCtx.os}
+                    onChange={(newOs) => {
+                      if (newOs === '──────────') return;
+                      const shells = SHELL_OPTIONS[newOs] || [];
+                      setDebugCtx({ ...debugCtx, os: newOs, shell: shells.includes(debugCtx.shell) ? debugCtx.shell : shells[0] });
+                    }}
+                    options={validOsOptions}
+                  />
+                  <CustomSelect
+                    value={debugCtx.shell}
+                    onChange={(newShell) => setDebugCtx({ ...debugCtx, shell: newShell })}
+                    options={validShellOptions}
+                    disabled={!!uploadedFile}
+                  />
+                  <input type="file" ref={fileInputRef} className="hidden" accept=".ps1,.bat,.cmd,.sh,.zsh,.tf,.yml,.yaml,.txt" onChange={handleFileUpload} />
+                  <button
+                    onClick={() => uploadedFile ? handleRemoveFile() : fileInputRef.current.click()}
+                    className={`px-3 py-2 rounded-md text-xs font-semibold uppercase tracking-wider flex items-center gap-2 border transition-colors shadow-sm h-10 ${uploadedFile ? 'bg-red-900/20 border-red-500/50 text-red-400 hover:bg-red-900/40' : 'bg-[#21262d] border-[#30363d] text-gray-300 hover:text-white'}`}
+                  >
+                    {uploadedFile ? <FileMinus className="w-4 h-4" /> : <FileUp className="w-4 h-4" />}
+                    {uploadedFile ? 'Remove Script' : 'Upload Script'}
+                  </button>
                 </div>
                 <button
                   onClick={startNewStandaloneSession}
-                  disabled={isStandaloneDebugging || !newStandaloneInput.trim()}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-5 rounded-md font-medium text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 w-full md:w-auto shrink-0 h-10 min-w-[160px] border border-transparent"
+                  disabled={isStandaloneDebugging || (!newStandaloneInput.trim() && !uploadedFile)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:bg-blue-900 px-5 rounded-md font-medium text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 w-full md:w-auto shrink-0 h-10 min-w-[160px] border border-transparent"
                 >
                   {isStandaloneDebugging ? <Loader2 className="w-5 h-5 animate-spin" /> : <><AlertCircle className="w-4 h-4" /> Analyze Issue</>}
                 </button>
@@ -203,7 +272,7 @@ export const GeneralDebuggerTab = ({
                 className="w-full h-12 bg-[#0d1117] border border-[#30363d] hover:border-red-500 rounded-md px-4 flex items-center justify-between text-sm font-mono cursor-text shadow-sm transition-colors"
               >
                 <span className="truncate collapsed-placeholder-text" style={{ color: getCollapsedSuggestionColor() }}>
-                  {newStandaloneInput ? newStandaloneInput : `e.g., Paste the error output from your ${debugCtx.shell} terminal here...`}
+                  {uploadedFile && !newStandaloneInput ? `Attached: ${uploadedFile.name} (Ready to Analyze)` : (newStandaloneInput ? newStandaloneInput : `e.g., Paste the error output from your ${debugCtx.shell} terminal here...`)}
                 </span>
               </div>
             </div>
@@ -229,7 +298,6 @@ export const GeneralDebuggerTab = ({
           </div>
         )}
 
-        {/* Loading Spinner with Cancel Button for Initial Debug */}
         {isStandaloneDebugging && activeStandaloneThread.length === 0 && (
           <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-10 flex flex-col items-center justify-center text-gray-400 shadow-md mt-6 animate-in fade-in duration-200 gap-3">
             <div className="flex flex-col items-center">
