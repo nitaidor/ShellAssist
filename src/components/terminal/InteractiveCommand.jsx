@@ -51,29 +51,46 @@ export const ensureTokenSpacing = (tokens = [], rawCommand = '') => {
     const cur = tokens[i];
     if (!cur || !cur.text) continue;
 
-    const curText = cur.text;
-    const foundIdx = cleanCmd.indexOf(curText, cmdCursor);
+    let tokenText = cur.text;
+    let foundIdx = cleanCmd.indexOf(tokenText, cmdCursor);
 
-    // If there was whitespace or newlines in rawCommand between the last token and this token, preserve it
+    // If exact token not found, try searching with trimmed text
+    if (foundIdx === -1 && tokenText.trim() && tokenText.trim() !== tokenText) {
+      tokenText = tokenText.trim();
+      foundIdx = cleanCmd.indexOf(tokenText, cmdCursor);
+    }
+
+    // If the token does not exist at or after cmdCursor, skip it to prevent desyncing cmdCursor
+    if (foundIdx === -1) {
+      continue;
+    }
+
+    // If there is intermediate text (whitespace, comments, or unannotated code) between cursor and found token, preserve 100% of it
     if (foundIdx > cmdCursor) {
       const intermediate = cleanCmd.substring(cmdCursor, foundIdx);
-      if (/^(\r?\n|[ \t]+)+$/.test(intermediate)) {
-        repaired.push({ text: intermediate, isWhitespace: true });
-      } else if (!/[\s\r\n]$/.test(repaired[repaired.length - 1]?.text || '')) {
-        repaired.push({ text: ' ', isWhitespace: true });
+      const intermediateParts = intermediate.split(/(\r?\n|[ \t]+)/).filter(Boolean);
+      for (const part of intermediateParts) {
+        const isWs = /^(\r?\n|[ \t]+)$/.test(part);
+        repaired.push({
+          text: part,
+          isWhitespace: isWs,
+          explanation: isWs ? undefined : 'N/A',
+          context: isWs ? undefined : 'N/A'
+        });
       }
       cmdCursor = foundIdx;
     }
 
     repaired.push({
       ...cur,
+      text: tokenText,
       isWhitespace: false
     });
 
-    cmdCursor = Math.max(cmdCursor, (foundIdx >= 0 ? foundIdx : cmdCursor) + curText.length);
+    cmdCursor = foundIdx + tokenText.length;
   }
 
-  // 2. If the AI truncated its tokens array before reaching the end of the script, append the remaining tail as N/A
+  // 2. If any remaining tail exists after the last matched token, preserve 100% of it
   if (cmdCursor < cleanCmd.length) {
     const remainingTail = cleanCmd.substring(cmdCursor);
     const tailParts = remainingTail.split(/(\r?\n|[ \t]+)/).filter(Boolean);
@@ -82,8 +99,8 @@ export const ensureTokenSpacing = (tokens = [], rawCommand = '') => {
       repaired.push({
         text: tp,
         isWhitespace: isWs,
-        explanation: 'N/A',
-        context: 'N/A'
+        explanation: isWs ? undefined : 'N/A',
+        context: isWs ? undefined : 'N/A'
       });
     });
   }
