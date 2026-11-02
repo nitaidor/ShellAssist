@@ -26,21 +26,25 @@ Before you begin, ensure you have met the following requirements:
    ```bash
    cd ShellAssist
    ```
-3. Install dependencies and build the executables using the provided batch file:
+3. Install dependencies and package the Windows desktop executables using the provided batch file:
    ```bash
    install.bat
    ```
 
 ## Usage
+To install dependencies manually, run:
+   ```bash
+   npm install
+   ```
 To start the application in development mode, run:
    ```bash
    npm run dev
    ```
-To compile the production web bundle (`dist`), run:
+To compile the production web bundle, run:
    ```bash
    npm run build
    ```
-To compile the bundle and package the Windows desktop executables (`dist-exe`), run:
+To compile the bundle and package the Windows desktop executables, run:
    ```bash
    npm run dist
    ```
