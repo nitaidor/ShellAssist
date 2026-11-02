@@ -36,7 +36,11 @@ To start the application in development mode, run:
    ```bash
    npm run dev
    ```
-To run the build process, run:
+To compile the production web bundle (`dist`), run:
+   ```bash
+   npm run build
+   ```
+To compile the bundle and package the Windows desktop executables (`dist-exe`), run:
    ```bash
    npm run dist
    ```
