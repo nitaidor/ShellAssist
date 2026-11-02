@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, nativeTheme } = require('electron');
 const path = require('path');
 const { exec } = require('child_process');
 const os = require('os');
@@ -53,11 +53,17 @@ ipcMain.handle('save-app-data', async (_event, data) => {
   }
 });
 
+// Native OS theme synchronizer for right-click context menus
+ipcMain.on('set-native-theme', (_event, mode) => {
+  if (mode === 'dark' || mode === 'light' || mode === 'system') {
+    nativeTheme.themeSource = mode;
+  }
+});
+
 let activeSessionDir = null;
 let activeSessionElevated = false;
 let activeSessionShell = 'PowerShell';
 
-// Captures dirToRemove locally so the 1500ms cleanup timer never deletes a newly started session
 function cleanupSession() {
   const dirToRemove = activeSessionDir;
   activeSessionDir = null;
@@ -91,7 +97,7 @@ function createWindow() {
     }
   });
 
-  // Enable native right-click context menu (Cut, Copy, Paste, Select All)
+  // Native right-click context menu (Cut, Copy, Paste, Select All)
   win.webContents.on('context-menu', (_event, params) => {
     const menuTemplate = [];
 
@@ -173,7 +179,6 @@ ipcMain.handle('start-session', async (_event, { shell, elevate }) => {
   fs.writeFileSync(workerScriptPath, workerCode, 'utf8');
 
   return new Promise((resolve) => {
-    // Use Base64 EncodedCommand to avoid any path-quoting issues when elevating via Start-Process -Verb RunAs
     const encodedWorkerLaunch = Buffer.from(`& "${workerScriptPath}"`, 'utf16le').toString('base64');
     const launchCmd = activeSessionElevated
       ? `powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process powershell -Verb RunAs -WindowStyle Hidden -ArgumentList '-NoProfile -ExecutionPolicy Bypass -EncodedCommand ${encodedWorkerLaunch}'"`
@@ -219,7 +224,6 @@ ipcMain.handle('run-command', async (_event, { command, shell, elevate, useActiv
     const isWin = process.platform === 'win32';
     const cleanShell = (shell || 'PowerShell').replace(/\s*\(Elevated\)/i, '').trim();
 
-    // 1. Only dispatch to the persistent background worker if this call came from the Interactive Terminal tab (useActiveSession === true)
     if (isWin && useActiveSession && activeSessionDir && fs.existsSync(activeSessionDir) && (activeSessionElevated || !elevate)) {
       const cmdId = Date.now() + '_' + Math.random().toString(36).substring(2, 6);
       const reqFile = path.join(activeSessionDir, `req_${cmdId}.ps1`);
@@ -263,7 +267,6 @@ ipcMain.handle('run-command', async (_event, { command, shell, elevate, useActiv
       return;
     }
 
-    // 2. Isolated single-shot execution (1-Click Run in Builder, Analyzer, and Debugger — spawns a separate terminal and closes immediately after)
     if (isWin) {
       const tempId = Date.now() + '_' + Math.random().toString(36).substring(2, 6);
       const scriptFile = path.join(os.tmpdir(), `sa_cmd_${tempId}.ps1`);

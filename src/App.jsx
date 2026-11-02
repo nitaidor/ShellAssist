@@ -111,7 +111,7 @@ export default function App() {
     };
   });
 
-  // Calculate and mount theme class directly onto <html> root element
+  // Calculate and mount theme class directly onto <html> root element & update Electron native menu
   useEffect(() => {
     const root = document.documentElement;
     root.classList.remove('theme-terminal-green', 'theme-terminal-red', 'theme-light', 'theme-monochrome');
@@ -121,6 +121,11 @@ export default function App() {
     } else {
       if (settings.darkTheme === 'green') root.classList.add('theme-terminal-green');
       if (settings.darkTheme === 'red') root.classList.add('theme-terminal-red');
+    }
+
+    // Synchronize native OS right-click context menus with app theme state
+    if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.setNativeTheme === 'function') {
+      window.electronAPI.setNativeTheme(isDarkMode ? 'dark' : 'light');
     }
   }, [isDarkMode, settings.darkTheme, settings.lightTheme]);
 
@@ -303,7 +308,6 @@ export default function App() {
     setActiveSimulatedSession(null);
   };
 
-  // Starts a 100%-simulated session immediately without any OS UAC prompt
   const initiateSimulatedSession = (overrideElevate = null, copiedPromptText = '') => {
     simCancelRef.current++;
     simExecCancelRef.current++;
@@ -626,7 +630,6 @@ export default function App() {
       turns: prev.turns.map(t => t.id === turnId ? { ...t, runState: 'running', debugCycles: [] } : t)
     } : prev);
 
-    // Passes useActiveSession = true so only the Interactive Terminal uses the persistent worker
     const res = await executeTerminalCommand(
       targetTurn.command,
       activeInteractiveSession.ctx,
@@ -684,7 +687,6 @@ export default function App() {
       turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, fixStatus: 'running' } : c) } : t)
     } : prev);
 
-    // Passes useActiveSession = true so only the Interactive Terminal uses the persistent worker
     const res = await executeTerminalCommand(
       fixCmd,
       activeInteractiveSession.ctx,
