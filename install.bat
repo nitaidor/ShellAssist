@@ -16,11 +16,6 @@ if %ERRORLEVEL% neq 0 (
     exit /b 0
 )
 
-echo ============================================================================
-echo   ShellAssist - Desktop Setup ^& EXE Builder (v1.3.0)
-echo ============================================================================
-echo.
-
 :: 1. Verify project structure
 echo [1/4] Checking project structure...
 if not exist "package.json" (
@@ -38,10 +33,19 @@ if not exist "electron\main.cjs" (
     pause
     exit /b 1
 )
-echo [OK] Project files verified.
+
+:: Dynamically read version from package.json
+for /f "delims=" %%v in ('powershell -NoProfile -Command "(Get-Content package.json -Raw | ConvertFrom-Json).version"') do set "APP_VER=%%v"
+if "!APP_VER!"=="" set "APP_VER=1.0.0"
+
+echo [OK] Project files verified (v!APP_VER!).
+echo.
+echo ============================================================================
+echo   ShellAssist - Desktop Setup ^& EXE Builder (v!APP_VER!)
+echo ============================================================================
+echo.
 
 :: 2. Check for Node.js
-echo.
 echo [2/4] Checking Node.js installation...
 where node >nul 2>nul
 if %ERRORLEVEL% neq 0 (
@@ -71,7 +75,7 @@ if !ERRORLEVEL! neq 0 (
 
 :: 4. Compile React bundle (dist) and package Windows EXEs (dist-exe)
 echo.
-echo [4/4] Compiling React bundle and building Windows EXE (v1.3.0)...
+echo [4/4] Compiling React bundle and building Windows EXE (v!APP_VER!)...
 set CSC_IDENTITY_AUTO_DISCOVERY=false
 call npm run dist
 if !ERRORLEVEL! neq 0 (
@@ -93,7 +97,7 @@ ie4uinit.exe -show >nul 2>nul
 if exist "dist-exe" (
     echo.
     echo ============================================================================
-    echo   SUCCESS! ShellAssist v1.3.0 Installer ^& Portable EXE created in:
+    echo   SUCCESS! ShellAssist v!APP_VER! Installer ^& Portable EXE created in:
     echo   %~dp0dist-exe
     echo ============================================================================
     explorer "%~dp0dist-exe"
