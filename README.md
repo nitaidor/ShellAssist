@@ -18,15 +18,15 @@ Before you begin, ensure you have met the following requirements:
 * API key (Gemini, ChatGPT, Claude) or local Ollama
 
 ## Installation
-Clone the repository:
+1. Clone the repository:
    ```bash
    git clone https://github.com/nitaidor/ShellAssist.git
    ```
-Navigate to the project directory:
+2. Navigate to the project directory:
    ```bash
    cd ShellAssist
    ```
-Install dependencies and build the executables using the provided batch file:
+3. Install dependencies and build the executables using the provided batch file:
    ```bash
    install.bat
    ```
