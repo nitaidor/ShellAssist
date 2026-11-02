@@ -1,10 +1,12 @@
 import React, { useState, useRef } from 'react';
-import { MessageSquare, ChevronRight, Play, Loader2, History as HistoryIcon, Star, Trash2, Search, AlertCircle, X, Ban } from 'lucide-react';
+import { MessageSquare, ChevronRight, Play, Loader2, History as HistoryIcon, Star, Trash2, Search, AlertCircle, X, Ban, FileUp, FileMinus } from 'lucide-react';
 import ContextDropdowns from '../../components/common/ContextDropdowns';
+import CustomSelect from '../../components/common/CustomSelect';
 import TurnItem from './TurnItem';
 import HistoryItem from './HistoryItem';
-import { generateId, formatSessionDate } from '../../utils/platform';
+import { generateId, formatSessionDate, getContextFromFileExtension } from '../../utils/platform';
 import { fetchCommandGeneration } from '../../services/gemini';
+import { OS_OPTIONS, SHELL_OPTIONS, TYPE_OPTIONS } from '../../constants/environment';
 
 export const CommandBuilderTab = ({
   settings,
@@ -18,12 +20,14 @@ export const CommandBuilderTab = ({
   getCollapsedSuggestionColor
 }) => {
   const builderInputRef = useRef(null);
+  const fileInputRef = useRef(null);
   const [builderCtx, setBuilderCtx] = useState({ os: 'Windows', shell: 'PowerShell', type: 'Command' });
   const [isBuilderExpanded, setIsBuilderExpanded] = useState(true);
   const [request, setRequest] = useState('');
   const [loading, setLoading] = useState(false);
   const [generateError, setGenerateError] = useState(null);
-  const [translationModeCode, setTranslationModeCode] = useState(false);
+  const [isAnalyzeMode, setIsAnalyzeMode] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState(null);
   const [activeThreadId, setActiveThreadId] = useState(null);
   const [activeBuilderTurns, setActiveBuilderTurns] = useState([]);
   const [activeRefineCtx, setActiveRefineCtx] = useState(null);
@@ -38,23 +42,64 @@ export const CommandBuilderTab = ({
 
   const expandBuilder = () => {
     setIsBuilderExpanded(true);
-    setTimeout(() => builderInputRef.current?.focus(), 50);
+    setTimeout(() => {
+      if (!uploadedFile) builderInputRef.current?.focus();
+    }, 50);
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    // Strict extension validation fallback
+    const ext = file.name.slice((Math.max(0, file.name.lastIndexOf(".")) || Infinity) + 1).toLowerCase();
+    const validExts = ['ps1', 'bat', 'cmd', 'sh', 'zsh', 'tf', 'yml', 'yaml', 'txt'];
+    if (!validExts.includes(ext)) {
+      setGenerateError(`Unsupported file extension: .${ext}. Please upload a supported script format.`);
+      e.target.value = null;
+      return;
+    }
+
+    setGenerateError(null);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target.result;
+      const mapping = getContextFromFileExtension(file.name);
+      
+      setUploadedFile({ 
+        name: file.name, 
+        content, 
+        validOs: mapping ? mapping.validOs : OS_OPTIONS.filter(o => o !== '──────────'), 
+        shell: mapping ? mapping.shell : builderCtx.shell 
+      });
+      
+      if (mapping) {
+        const newOs = mapping.validOs.includes(builderCtx.os) ? builderCtx.os : mapping.validOs[0];
+        setBuilderCtx({ ...builderCtx, os: newOs, shell: mapping.shell });
+      }
+      setRequest('');
+    };
+    reader.readAsText(file);
+    e.target.value = null; 
+  };
+
+  const handleRemoveFile = () => {
+    setUploadedFile(null);
   };
 
   const handleCancelPrimaryGeneration = () => {
-    cancelGenRef.current++; // Invalidate pending AI promise so it never pops up later
+    cancelGenRef.current++; 
     setLoading(false);
-    // If active turns is empty (cancelling the first prompt), auto-expand the top prompt window
     if (activeBuilderTurns.length === 0) {
       setIsBuilderExpanded(true);
-      if (lastRequestedPromptRef.current && !request) {
+      if (lastRequestedPromptRef.current && !request && !uploadedFile) {
         setRequest(lastRequestedPromptRef.current);
       }
     }
   };
 
   const handleCancelRefinement = () => {
-    cancelGenRef.current++; // Invalidate pending refinement promise
+    cancelGenRef.current++; 
     setIsRefining(false);
   };
 
@@ -90,7 +135,6 @@ export const CommandBuilderTab = ({
     setFavorites(prev => prev.map(f => f.id === sessionId ? { ...f, turns: f.turns.map((t, i) => i === turnIndex ? { ...t, debugThread: thread } : t) } : f));
   };
 
-  // Persists deep token breakdowns into both active turns and saved History/Favorites
   const handleUpdateSessionTokens = (sessionId, turnIndex, newTokens) => {
     setHistory(prev => prev.map(h => h.id === sessionId ? {
       ...h,
@@ -103,16 +147,23 @@ export const CommandBuilderTab = ({
   };
 
   const handleGenerateNew = async () => {
-    if (!request.trim()) return;
-    const currentRequest = request;
+    const payload = uploadedFile ? uploadedFile.content : request;
+    if (!payload.trim()) return;
+    
+    const currentRequest = payload;
     lastRequestedPromptRef.current = currentRequest;
-    const currentCtx = { ...builderCtx };
-    const currentMode = translationModeCode ? 'code-to-en' : 'en-to-code';
+    
+    let currentCtx = { ...builderCtx };
+    if (isAnalyzeMode) {
+      const isScript = !!uploadedFile || payload.includes('\n');
+      currentCtx.type = isScript ? 'Script' : 'Command';
+    }
+    
+    const currentMode = isAnalyzeMode ? 'code-to-en' : 'en-to-code';
 
     const genId = ++cancelGenRef.current;
     setGenerateError(null);
     setIsBuilderExpanded(false);
-    setTranslationModeCode(false);
     setActiveBuilderTurns([]);
     const newThreadId = generateId();
     setActiveThreadId(newThreadId);
@@ -120,13 +171,16 @@ export const CommandBuilderTab = ({
 
     try {
       const result = await fetchCommandGeneration(currentRequest, [], currentCtx, currentMode, false, settings);
-      // Discard response if user clicked Cancel while waiting
       if (cancelGenRef.current !== genId) return;
+
+      // Analysis/Generation succeeded, cleanup UI state
+      setUploadedFile(null);
+      setRequest('');
+      setIsAnalyzeMode(false); // Return to standard builder mode for subsequent prompts
 
       const firstTurn = { ...result, id: generateId(), prompt: currentRequest, ctx: currentCtx, debugThread: [], mode: currentMode, isStarred: false };
       setActiveBuilderTurns([firstTurn]);
       setActiveRefineCtx(currentCtx);
-      setRequest('');
 
       setHistory(prev => [
         {
@@ -186,6 +240,9 @@ export const CommandBuilderTab = ({
 
   const displayHistory = sortedHistory.filter(item => item.id !== activeThreadId);
 
+  const validOsOptions = uploadedFile ? uploadedFile.validOs : OS_OPTIONS;
+  const validShellOptions = uploadedFile ? [uploadedFile.shell] : (SHELL_OPTIONS[builderCtx.os] || []);
+
   return (
     <>
       <section className="space-y-6">
@@ -201,16 +258,21 @@ export const CommandBuilderTab = ({
                     <MessageSquare className="w-5 h-5 shrink-0 icon-builder" /> Translate to Code/Script
                   </h2>
                   <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                    Describe what you want to achieve in plain English, or check the EN MODE box to reverse-translate code.
+                    Describe what you want to achieve in plain English, or check the Analyze box to reverse-translate code.
                   </p>
                 </div>
               </div>
               <textarea
                 ref={builderInputRef}
-                value={request}
+                disabled={!!uploadedFile}
+                value={uploadedFile ? `Attached: ${uploadedFile.name} (Uploaded Script Locked)` : request}
                 onChange={(e) => setRequest(e.target.value)}
-                placeholder={translationModeCode ? `e.g., Paste your ${builderCtx.shell} ${builderCtx.type.toLowerCase()} here to translate it to English...` : builderCtx.type === 'Script' ? `e.g., Write a script to backup a directory in ${builderCtx.os} using ${builderCtx.shell}...` : `e.g., List files in ${builderCtx.os} using ${builderCtx.shell}...`}
-                className="w-full h-28 bg-[#0d1117] border border-[#30363d] rounded-md p-4 font-mono text-sm text-gray-200 focus:outline-none focus:border-blue-500 resize-none shadow-sm mt-3"
+                placeholder={isAnalyzeMode ? `e.g., Paste your ${builderCtx.shell} code here to analyze...` : builderCtx.type === 'Script' ? `e.g., Write a script to backup a directory in ${builderCtx.os} using ${builderCtx.shell}...` : `e.g., List files in ${builderCtx.os} using ${builderCtx.shell}...`}
+                className={`w-full h-28 border rounded-md p-4 font-mono text-sm focus:outline-none resize-none shadow-sm mt-3 transition-colors ${
+                  uploadedFile 
+                    ? 'bg-[#0d1117] border-[#30363d] text-gray-500 cursor-not-allowed'
+                    : 'bg-[#0d1117] border-[#30363d] text-gray-200 focus:border-blue-500'
+                }`}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -220,18 +282,61 @@ export const CommandBuilderTab = ({
               />
               <div className="mt-4 flex flex-col md:flex-row justify-between items-center gap-4">
                 <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-                  <ContextDropdowns ctx={builderCtx} setCtx={setBuilderCtx} />
+                  <CustomSelect
+                    value={builderCtx.os}
+                    onChange={(newOs) => {
+                      if (newOs === '──────────') return;
+                      const shells = SHELL_OPTIONS[newOs] || [];
+                      setBuilderCtx({ ...builderCtx, os: newOs, shell: shells.includes(builderCtx.shell) ? builderCtx.shell : shells[0] });
+                    }}
+                    options={validOsOptions}
+                  />
+                  <CustomSelect
+                    value={builderCtx.shell}
+                    onChange={(newShell) => setBuilderCtx({ ...builderCtx, shell: newShell })}
+                    options={validShellOptions}
+                    disabled={!!uploadedFile}
+                  />
+                  
+                  {isAnalyzeMode ? (
+                    <>
+                      <input type="file" ref={fileInputRef} className="hidden" accept=".ps1,.bat,.cmd,.sh,.zsh,.tf,.yml,.yaml,.txt" onChange={handleFileUpload} />
+                      <button
+                        onClick={() => uploadedFile ? handleRemoveFile() : fileInputRef.current.click()}
+                        className="px-3 py-2 rounded-md text-xs font-semibold uppercase tracking-wider flex items-center gap-2 border transition-colors shadow-sm h-10 bg-[#161b22] border-[#30363d] text-gray-300 hover:bg-[#21262d] hover:text-white"
+                      >
+                        {uploadedFile ? <FileMinus className="w-4 h-4 btn-cancel-icon" /> : <FileUp className="w-4 h-4" />}
+                        {uploadedFile ? 'Remove Script' : 'Upload Script'}
+                      </button>
+                    </>
+                  ) : (
+                    <CustomSelect
+                      value={builderCtx.type}
+                      onChange={(newType) => setBuilderCtx({ ...builderCtx, type: newType })}
+                      options={TYPE_OPTIONS}
+                    />
+                  )}
+
                   <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-400 cursor-pointer hover:text-gray-200 transition-colors h-10 border border-[#30363d] bg-[#21262d] px-3 rounded-md select-none">
-                    <input type="checkbox" checked={translationModeCode} onChange={(e) => setTranslationModeCode(e.target.checked)} className="custom-checkbox" />
-                    Code <ChevronRight className="w-3 h-3 inline -mx-1" /> EN Mode
+                    <input 
+                      type="checkbox" 
+                      checked={isAnalyzeMode} 
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setIsAnalyzeMode(checked);
+                        if (!checked && uploadedFile) setUploadedFile(null);
+                      }} 
+                      className="custom-checkbox" 
+                    />
+                    Analyze
                   </label>
                 </div>
                 <button
                   onClick={handleGenerateNew}
-                  disabled={loading || !request.trim()}
+                  disabled={loading || (!uploadedFile && !request.trim())}
                   className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-900 disabled:opacity-50 text-white px-5 rounded-md font-medium text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 w-full md:w-auto shrink-0 h-10 min-w-[160px] border border-transparent"
                 >
-                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Play className="w-4 h-4 fill-current" /> {translationModeCode ? `Analyze ${builderCtx.type}` : `Generate ${builderCtx.type}`}</>}
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Play className="w-4 h-4 fill-current" /> {isAnalyzeMode ? `Analyze ${builderCtx.type}` : `Generate ${builderCtx.type}`}</>}
                 </button>
               </div>
             </div>
@@ -242,7 +347,7 @@ export const CommandBuilderTab = ({
                 className="w-full h-12 bg-[#0d1117] border border-[#30363d] hover:border-blue-500 rounded-md px-4 flex items-center justify-between text-sm font-mono cursor-text shadow-sm transition-colors"
               >
                 <span className="truncate collapsed-placeholder-text" style={{ color: getCollapsedSuggestionColor() }}>
-                  {request ? request : `e.g., List files in ${builderCtx.os} using ${builderCtx.shell}...`}
+                  {uploadedFile ? `Attached: ${uploadedFile.name}` : (request ? request : `e.g., List files in ${builderCtx.os} using ${builderCtx.shell}...`)}
                 </span>
               </div>
             </div>
@@ -273,13 +378,13 @@ export const CommandBuilderTab = ({
           <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-10 flex flex-col items-center justify-center text-gray-400 shadow-md animate-in fade-in duration-200 gap-3">
             <div className="flex flex-col items-center">
               <Loader2 className="w-8 h-8 animate-spin mb-3 icon-builder" />
-              <p className="text-sm">Generating {builderCtx.type.toLowerCase()}...</p>
+              <p className="text-sm">{isAnalyzeMode ? `Analyzing code...` : `Generating ${builderCtx.type.toLowerCase()}...`}</p>
             </div>
             <button
               type="button"
               onClick={handleCancelPrimaryGeneration}
               className="px-3 py-1 bg-[#21262d] hover:bg-[#30363d] text-gray-300 hover:text-white rounded border border-[#30363d] text-xs font-mono flex items-center gap-1.5 transition-colors"
-              title="Cancel prompt generation"
+              title="Cancel generation"
             >
               <Ban className="w-3.5 h-3.5 btn-cancel-icon" /> Cancel
             </button>
