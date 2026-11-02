@@ -75,7 +75,7 @@ export const Header = ({ isDarkMode, settings, apiStatus, showMenu, setShowMenu,
             <div className="flex flex-col justify-between h-9 py-0.5">
               {renderBadge()}
               <span className="px-2 py-0.5 text-[9px] font-mono font-bold tracking-wider rounded border status-badge-version shadow-sm flex items-center w-fit leading-none select-none">
-                v1.2.0
+                v1.3.0
               </span>
             </div>
           </div>

@@ -17,7 +17,7 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo ============================================================================
-echo   ShellAssist - Desktop Setup ^& EXE Builder (v1.2.0)
+echo   ShellAssist - Desktop Setup ^& EXE Builder (v1.3.0)
 echo ============================================================================
 echo.
 
@@ -71,7 +71,7 @@ if !ERRORLEVEL! neq 0 (
 
 :: 4. Compile React bundle (dist) and package Windows EXEs (dist-exe)
 echo.
-echo [4/4] Compiling React bundle and building Windows EXE (v1.2.0)...
+echo [4/4] Compiling React bundle and building Windows EXE (v1.3.0)...
 set CSC_IDENTITY_AUTO_DISCOVERY=false
 call npm run dist
 if !ERRORLEVEL! neq 0 (
@@ -93,7 +93,7 @@ ie4uinit.exe -show >nul 2>nul
 if exist "dist-exe" (
     echo.
     echo ============================================================================
-    echo   SUCCESS! ShellAssist v1.2.0 Installer ^& Portable EXE created in:
+    echo   SUCCESS! ShellAssist v1.3.0 Installer ^& Portable EXE created in:
     echo   %~dp0dist-exe
     echo ============================================================================
     explorer "%~dp0dist-exe"
