@@ -1,8 +1,7 @@
 import React, { useRef, useEffect } from 'react';
-import { TerminalSquare, Settings, HelpCircle, AlertTriangle, XCircle, CheckCircle2, Loader2 } from 'lucide-react';
-import { version } from '../../../package.json';
+import { TerminalSquare, Settings, HelpCircle, AlertTriangle, XCircle, CheckCircle2, Loader2, Info } from 'lucide-react';
 
-export const Header = ({ isDarkMode, settings, apiStatus, showMenu, setShowMenu, onOpenSettings, onOpenHelp }) => {
+export const Header = ({ isDarkMode, settings, apiStatus, showMenu, setShowMenu, onOpenSettings, onOpenHelp, onOpenAbout }) => {
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -35,28 +34,28 @@ export const Header = ({ isDarkMode, settings, apiStatus, showMenu, setShowMenu,
 
     if (!info.hasKey) {
       return (
-        <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded border flex items-center gap-1 status-badge-warning shadow-sm leading-none w-fit">
-          <AlertTriangle className="w-2.5 h-2.5" /> Missing API Key
+        <span className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider rounded border flex items-center gap-1.5 status-badge-warning shadow-sm leading-none w-fit">
+          <AlertTriangle className="w-3.5 h-3.5" /> Missing API Key
         </span>
       );
     }
     if (apiStatus === 'checking') {
       return (
-        <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded border flex items-center gap-1 status-badge-checking shadow-sm leading-none w-fit">
-          <Loader2 className="w-2.5 h-2.5 animate-spin" /> {info.label} (Checking...)
+        <span className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider rounded border flex items-center gap-1.5 status-badge-checking shadow-sm leading-none w-fit">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" /> {info.label} (Checking...)
         </span>
       );
     }
     if (apiStatus === 'invalid') {
       return (
-        <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded border flex items-center gap-1 status-badge-error shadow-sm leading-none w-fit">
-          <XCircle className="w-2.5 h-2.5" /> {settings.apiProvider === 'ollama' ? 'Local AI Offline' : 'Wrong API Key'}
+        <span className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider rounded border flex items-center gap-1.5 status-badge-error shadow-sm leading-none w-fit">
+          <XCircle className="w-3.5 h-3.5" /> {settings.apiProvider === 'ollama' ? 'Local AI Offline' : 'Wrong API Key'}
         </span>
       );
     }
     return (
-      <span className="px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider rounded border flex items-center gap-1 status-badge-valid shadow-sm leading-none w-fit">
-        <CheckCircle2 className="w-2.5 h-2.5" /> {info.label} ({info.model})
+      <span className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider rounded border flex items-center gap-1.5 status-badge-valid shadow-sm leading-none w-fit">
+        <CheckCircle2 className="w-3.5 h-3.5" /> {info.label} ({info.model})
       </span>
     );
   };
@@ -72,12 +71,9 @@ export const Header = ({ isDarkMode, settings, apiStatus, showMenu, setShowMenu,
               ShellAssist
             </h1>
 
-            {/* Stacked AI Model & Version Badges fitting title height */}
-            <div className="flex flex-col justify-between h-9 py-0.5">
+            {/* Prominent, Larger AI Model Badge */}
+            <div className="flex items-center">
               {renderBadge()}
-              <span className="px-2 py-0.5 text-[9px] font-mono font-bold tracking-wider rounded border status-badge-version shadow-sm flex items-center w-fit leading-none select-none">
-                v{version}
-              </span>
             </div>
           </div>
           <p className="text-sm text-gray-400 mt-1.5">Translate English to code, reverse-engineer scripts, and debug errors.</p>
@@ -104,6 +100,12 @@ export const Header = ({ isDarkMode, settings, apiStatus, showMenu, setShowMenu,
               className="theme-menu-item w-full text-left px-4 py-3 text-sm flex items-center gap-2 border-t border-[#30363d] transition-colors"
             >
               <HelpCircle className="w-4 h-4" /> Help & Guide
+            </button>
+            <button
+              onClick={() => { onOpenAbout(); setShowMenu(false); }}
+              className="theme-menu-item w-full text-left px-4 py-3 text-sm flex items-center gap-2 border-t border-[#30363d] transition-colors"
+            >
+              <Info className="w-4 h-4" /> About ShellAssist
             </button>
           </div>
         )}

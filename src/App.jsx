@@ -8,6 +8,7 @@ import CodeAnalyzerTab from './tabs/analyzer/CodeAnalyzerTab';
 import GeneralDebuggerTab from './tabs/debugger/GeneralDebuggerTab';
 import SettingsModal from './components/modals/SettingsModal';
 import HelpModal from './components/modals/HelpModal';
+import AboutModal from './components/modals/AboutModal';
 import {
   TerminalDisclaimerModal,
   RequiresElevationModal,
@@ -74,6 +75,7 @@ export default function App() {
   const [showMenu, setShowMenu] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
   const [showTerminalDisclaimerModal, setShowTerminalDisclaimerModal] = useState(false);
   const [historyClearModal, setHistoryClearModal] = useState(null);
   const [activeTab, setActiveTab] = useState('builder');
@@ -219,6 +221,7 @@ export default function App() {
   const isAnyModalOpen = Boolean(
     showHelpModal ||
     showSettingsModal ||
+    showAboutModal ||
     showTerminalDisclaimerModal ||
     simElevationModalPrompt !== null ||
     elevationModalPrompt !== null ||
@@ -507,7 +510,7 @@ export default function App() {
       } catch {
         setActiveSimulatedSession(prev => prev ? {
           ...prev,
-          turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === nextCycleId ? { ...c, isAnalyzing: false, fixExplanation: 'Failed to simulate subsequent fix.', fixCommand: '' } : c) } : t)
+          turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === nextCycleId ? { ...c, isAnalyzing: false, fixExplanation: 'Failed to analyze subsequent error.', fixCommand: '' } : c) } : t)
         } : prev);
       }
     }
@@ -780,6 +783,7 @@ export default function App() {
           setShowMenu={setShowMenu}
           onOpenSettings={() => setShowSettingsModal(true)}
           onOpenHelp={() => setShowHelpModal(true)}
+          onOpenAbout={() => setShowAboutModal(true)}
         />
 
         <TabNav activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -1083,6 +1087,11 @@ export default function App() {
         <HelpModal
           isOpen={showHelpModal}
           onClose={() => setShowHelpModal(false)}
+        />
+
+        <AboutModal
+          isOpen={showAboutModal}
+          onClose={() => setShowAboutModal(false)}
         />
       </div>
     </ErrorBoundary>
