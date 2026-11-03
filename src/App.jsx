@@ -208,6 +208,7 @@ export default function App() {
   const [lastFailedInteractiveTurn, setLastFailedInteractiveTurn] = useState(null);
   const [interactiveInitialInput, setInteractiveInitialInput] = useState('');
   const [interactiveNextInput, setInteractiveNextInput] = useState('');
+  const [isInteractiveStarting, setIsInteractiveStarting] = useState(false);
   const [isInteractiveGenerating, setIsInteractiveGenerating] = useState(false);
   const [elevationModalTurn, setElevationModalTurn] = useState(null);
   const interactiveCancelRef = useRef(0);
@@ -345,7 +346,6 @@ export default function App() {
     setSimulatedNextInput('');
   };
 
-  // Turn is ALWAYS generated without premature blocking
   const handleGenerateSimulatedTurn = async (isInitial = false, overridePrompt = null) => {
     const promptText = overridePrompt !== null ? overridePrompt : (isInitial ? simulatedInitialInput : simulatedNextInput);
     if (!promptText.trim() || !activeSimulatedSession || isSimulatedGenerating) return;
@@ -384,9 +384,10 @@ export default function App() {
     }
   };
 
-  const executeSimulatedPrimaryCommand = async (turnId) => {
-    if (!activeSimulatedSession) return;
-    const targetTurn = activeSimulatedSession.turns.find(t => t.id === turnId);
+  const executeSimulatedPrimaryCommand = async (turnId, sessionOverride = null) => {
+    const currentSession = sessionOverride || activeSimulatedSession;
+    if (!currentSession) return;
+    const targetTurn = currentSession.turns.find(t => t.id === turnId);
     if (!targetTurn) return;
 
     const execId = ++simExecCancelRef.current;
@@ -397,16 +398,16 @@ export default function App() {
 
     const res = await executeTerminalCommand(
       targetTurn.command,
-      activeSimulatedSession.ctx,
+      currentSession.ctx,
       settings,
-      activeSimulatedSession.fullTranscript,
-      Boolean(activeSimulatedSession.ctx?.isElevated),
+      currentSession.fullTranscript,
+      Boolean(currentSession.ctx?.isElevated),
       true,
       false
     );
 
     if (simExecCancelRef.current !== execId) return;
-    const updatedTranscript = (activeSimulatedSession.fullTranscript + `\n> ${targetTurn.command}\n${res.output || res.message}\n`).trim();
+    const updatedTranscript = (currentSession.fullTranscript + `\n> ${targetTurn.command}\n${res.output || res.message}\n`).trim();
 
     if (res.status === 'success') {
       setApiStatus('valid');
@@ -431,7 +432,7 @@ export default function App() {
       } : prev);
 
       try {
-        const debugRes = await fetchInteractiveAutoDebug(targetTurn.prompt, targetTurn.command, updatedTranscript, activeSimulatedSession.ctx, settings);
+        const debugRes = await fetchInteractiveAutoDebug(targetTurn.prompt, targetTurn.command, updatedTranscript, currentSession.ctx, settings);
         setApiStatus('valid');
         setActiveSimulatedSession(prev => prev ? {
           ...prev,
@@ -469,13 +470,13 @@ export default function App() {
       setActiveSimulatedSession(prev => prev ? {
         ...prev,
         fullTranscript: updatedTranscript,
-        turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, fixStatus: 'success', fixResultMessage: res.message, fixResultOutput: res.output } : t) } : t)
+        turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, fixStatus: 'success', fixResultMessage: res.message, fixResultOutput: res.output } : c) } : t)
       } : prev);
     } else if (res.status === 'failed') {
       setActiveSimulatedSession(prev => prev ? {
         ...prev,
         fullTranscript: updatedTranscript,
-        turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, fixStatus: 'failed', fixResultMessage: res.message } : t) } : t)
+        turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, fixStatus: 'failed', fixResultMessage: res.message } : c) } : t)
       } : prev);
     } else {
       const nextCycleId = generateId();
@@ -542,7 +543,7 @@ export default function App() {
     setSimulatedNextInput('');
 
     if (elevatedTurn) {
-      setTimeout(() => executeSimulatedPrimaryCommand(elevatedTurn.id), 50);
+      executeSimulatedPrimaryCommand(elevatedTurn.id, newSession);
     }
   };
 
@@ -561,6 +562,7 @@ export default function App() {
   };
 
   const initiateInteractiveSession = async (overrideElevate = null, copiedPromptText = '') => {
+    if (isInteractiveStarting) return;
     interactiveCancelRef.current++;
     primaryExecCancelRef.current++;
     setInteractiveConnectionError(null);
@@ -575,32 +577,36 @@ export default function App() {
       isElevated
     };
 
-    const startRes = await startTerminalSession(sessionCtx, settings, false);
-    if (startRes?.status === 'failed') {
-      setInteractiveConnectionError(startRes.message || `Failed to start ${selectedInteractiveShell} session.`);
-      setActiveInteractiveSession(null);
-      return;
+    setIsInteractiveStarting(true);
+    try {
+      const startRes = await startTerminalSession(sessionCtx, settings, false);
+      if (startRes?.status === 'failed') {
+        setInteractiveConnectionError(startRes.message || `Failed to start ${selectedInteractiveShell} session.`);
+        setActiveInteractiveSession(null);
+        return;
+      }
+
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString(undefined, { hour12: settings.clockFormat === '12h' });
+      const shellLabel = isElevated ? `${selectedInteractiveShell} (Elevated)` : selectedInteractiveShell;
+
+      const newSession = {
+        id: generateId(),
+        dateTime: now.toLocaleString(),
+        unixTime: Date.now(),
+        ctx: sessionCtx,
+        turns: [],
+        fullTranscript: `[${timeStr}] Connected to ${shellLabel} on ${hostOs}.\n`
+      };
+      setActiveInteractiveSession(newSession);
+      setInteractiveHistory(prev => [newSession, ...prev.filter(s => s.id !== newSession.id)]);
+      setInteractiveInitialInput(copiedPromptText || '');
+      setInteractiveNextInput('');
+    } finally {
+      setIsInteractiveStarting(false);
     }
-
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString(undefined, { hour12: settings.clockFormat === '12h' });
-    const shellLabel = isElevated ? `${selectedInteractiveShell} (Elevated)` : selectedInteractiveShell;
-
-    const newSession = {
-      id: generateId(),
-      dateTime: now.toLocaleString(),
-      unixTime: Date.now(),
-      ctx: sessionCtx,
-      turns: [],
-      fullTranscript: `[${timeStr}] Connected to ${shellLabel} on ${hostOs}.\n`
-    };
-    setActiveInteractiveSession(newSession);
-    setInteractiveHistory(prev => [newSession, ...prev.filter(s => s.id !== newSession.id)]);
-    setInteractiveInitialInput(copiedPromptText || '');
-    setInteractiveNextInput('');
   };
 
-  // Turn is ALWAYS generated without premature blocking
   const handleGenerateInteractiveTurn = async (isInitial = false, overridePrompt = null) => {
     const promptText = overridePrompt !== null ? overridePrompt : (isInitial ? interactiveInitialInput : interactiveNextInput);
     if (!promptText.trim() || !activeInteractiveSession || isInteractiveGenerating) return;
@@ -638,9 +644,10 @@ export default function App() {
     }
   };
 
-  const executeInteractivePrimaryCommand = async (turnId) => {
-    if (!activeInteractiveSession) return;
-    const targetTurn = activeInteractiveSession.turns.find(t => t.id === turnId);
+  const executeInteractivePrimaryCommand = async (turnId, sessionOverride = null) => {
+    const currentSession = sessionOverride || activeInteractiveSession;
+    if (!currentSession) return;
+    const targetTurn = currentSession.turns.find(t => t.id === turnId);
     if (!targetTurn) return;
 
     const execId = ++primaryExecCancelRef.current;
@@ -651,16 +658,16 @@ export default function App() {
 
     const res = await executeTerminalCommand(
       targetTurn.command,
-      activeInteractiveSession.ctx,
+      currentSession.ctx,
       settings,
-      activeInteractiveSession.fullTranscript,
-      Boolean(activeInteractiveSession.ctx?.isElevated),
+      currentSession.fullTranscript,
+      Boolean(currentSession.ctx?.isElevated),
       false,
       true
     );
 
     if (primaryExecCancelRef.current !== execId) return;
-    const updatedTranscript = (activeInteractiveSession.fullTranscript + `\n> ${targetTurn.command}\n${res.output || res.message}\n`).trim();
+    const updatedTranscript = (currentSession.fullTranscript + `\n> ${targetTurn.command}\n${res.output || res.message}\n`).trim();
 
     if (res.status === 'success') {
       setActiveInteractiveSession(prev => prev ? {
@@ -684,7 +691,7 @@ export default function App() {
       } : prev);
 
       try {
-        const debugRes = await fetchInteractiveAutoDebug(targetTurn.prompt, targetTurn.command, updatedTranscript, activeInteractiveSession.ctx, settings);
+        const debugRes = await fetchInteractiveAutoDebug(targetTurn.prompt, targetTurn.command, updatedTranscript, currentSession.ctx, settings);
         setApiStatus('valid');
         setActiveInteractiveSession(prev => prev ? {
           ...prev,
@@ -756,6 +763,7 @@ export default function App() {
 
   // Choice 3: End & Run as Admin in Interactive Real Terminal
   const handleInteractiveEndAndRunAsAdmin = async () => {
+    if (isInteractiveStarting) return;
     const targetTurn = elevationModalTurn;
     setElevationModalTurn(null);
     setRunInteractiveAsAdmin(true);
@@ -777,34 +785,39 @@ export default function App() {
       isElevated: true
     };
 
-    const startRes = await startTerminalSession(sessionCtx, settings, false);
-    if (startRes?.status === 'failed') {
-      setInteractiveConnectionError(startRes.message || `Failed to start ${selectedInteractiveShell} session.`);
-      setActiveInteractiveSession(null);
-      return;
-    }
+    setIsInteractiveStarting(true);
+    try {
+      const startRes = await startTerminalSession(sessionCtx, settings, false);
+      if (startRes?.status === 'failed') {
+        setInteractiveConnectionError(startRes.message || `Failed to start ${selectedInteractiveShell} session.`);
+        setActiveInteractiveSession(null);
+        return;
+      }
 
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString(undefined, { hour12: settings.clockFormat === '12h' });
-    const shellLabel = `${selectedInteractiveShell} (Elevated)`;
-    const elevatedTurn = targetTurn ? { ...targetTurn, ctx: sessionCtx, runState: 'idle' } : null;
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString(undefined, { hour12: settings.clockFormat === '12h' });
+      const shellLabel = `${selectedInteractiveShell} (Elevated)`;
+      const elevatedTurn = targetTurn ? { ...targetTurn, ctx: sessionCtx, runState: 'idle' } : null;
 
-    const newSession = {
-      id: generateId(),
-      dateTime: now.toLocaleString(),
-      unixTime: Date.now(),
-      ctx: sessionCtx,
-      turns: elevatedTurn ? [elevatedTurn] : [],
-      fullTranscript: `[${timeStr}] Connected to ${shellLabel} on ${hostOs}.\n`
-    };
+      const newSession = {
+        id: generateId(),
+        dateTime: now.toLocaleString(),
+        unixTime: Date.now(),
+        ctx: sessionCtx,
+        turns: elevatedTurn ? [elevatedTurn] : [],
+        fullTranscript: `[${timeStr}] Connected to ${shellLabel} on ${hostOs}.\n`
+      };
 
-    setActiveInteractiveSession(newSession);
-    setInteractiveHistory(prev => [newSession, ...prev.filter(s => s.id !== newSession.id)]);
-    setInteractiveInitialInput('');
-    setInteractiveNextInput('');
+      setActiveInteractiveSession(newSession);
+      setInteractiveHistory(prev => [newSession, ...prev.filter(s => s.id !== newSession.id)]);
+      setInteractiveInitialInput('');
+      setInteractiveNextInput('');
 
-    if (elevatedTurn) {
-      setTimeout(() => executeInteractivePrimaryCommand(elevatedTurn.id), 50);
+      if (elevatedTurn) {
+        executeInteractivePrimaryCommand(elevatedTurn.id, newSession);
+      }
+    } finally {
+      setIsInteractiveStarting(false);
     }
   };
 
@@ -938,6 +951,7 @@ export default function App() {
               setInteractiveInitialInput={setInteractiveInitialInput}
               interactiveNextInput={interactiveNextInput}
               setInteractiveNextInput={setInteractiveNextInput}
+              isInteractiveStarting={isInteractiveStarting}
               isInteractiveGenerating={isInteractiveGenerating}
               interactiveHistory={interactiveHistory}
               onOpenSettings={() => setShowSettingsModal(true)}

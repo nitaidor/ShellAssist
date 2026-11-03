@@ -22,6 +22,7 @@ export const InteractiveTab = ({
   setInteractiveInitialInput,
   interactiveNextInput,
   setInteractiveNextInput,
+  isInteractiveStarting,
   isInteractiveGenerating,
   interactiveHistory,
   onOpenSettings,
@@ -101,16 +102,16 @@ export const InteractiveTab = ({
                   value={isWebView ? 'N/A' : selectedInteractiveShell}
                   onChange={(val) => setSelectedInteractiveShell(val)}
                   options={isWebView ? ['N/A'] : interactiveShellOptions}
-                  disabled={!settings.enableExecution || isWebView}
+                  disabled={!settings.enableExecution || isWebView || isInteractiveStarting}
                 />
                 <label
-                  className={`h-10 px-3 rounded-md border border-[#30363d] bg-[#21262d] flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-300 select-none transition-colors ${(!settings.enableExecution || isWebView) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:text-white'}`}
+                  className={`h-10 px-3 rounded-md border border-[#30363d] bg-[#21262d] flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-300 select-none transition-colors ${(!settings.enableExecution || isWebView || isInteractiveStarting) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:text-white'}`}
                   title="Run interactive session with Administrator privileges (triggers OS UAC prompt once)"
                 >
                   <input
                     type="checkbox"
                     checked={Boolean(runInteractiveAsAdmin)}
-                    disabled={!settings.enableExecution || isWebView}
+                    disabled={!settings.enableExecution || isWebView || isInteractiveStarting}
                     onChange={(e) => setRunInteractiveAsAdmin && setRunInteractiveAsAdmin(e.target.checked)}
                     className="custom-checkbox"
                   />
@@ -118,17 +119,31 @@ export const InteractiveTab = ({
                 </label>
                 <button
                   onClick={onStartSessionClick}
-                  disabled={!settings.enableExecution || isWebView}
+                  disabled={!settings.enableExecution || isWebView || isInteractiveStarting}
                   title={isWebView ? "Real bridge requires running ShellAssist as a desktop application. Use the Simulated Terminal tab to test commands in a browser." : ""}
-                  className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-5 rounded-md font-medium flex items-center justify-center gap-2 shadow-md transition-all h-10 border border-transparent shrink-0"
+                  className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white px-5 rounded-md font-medium flex items-center justify-center gap-2 shadow-md transition-all h-10 border border-transparent shrink-0 min-w-[100px]"
                 >
-                  <Play className="w-4 h-4 fill-current" /> Start
+                  {isInteractiveStarting ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Connecting...</>
+                  ) : (
+                    <><Play className="w-4 h-4 fill-current" /> Start</>
+                  )}
                 </button>
               </div>
             </div>
           </div>
 
-          {interactiveConnectionError && !activeInteractiveSession && (
+          {/* Loading Wheel Panel while waiting for terminal session to connect */}
+          {isInteractiveStarting && (
+            <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-10 flex flex-col items-center justify-center text-gray-400 shadow-md animate-in fade-in duration-200 gap-3">
+              <Loader2 className="w-8 h-8 animate-spin icon-interactive" />
+              <p className="text-sm font-mono">
+                Connecting to {runInteractiveAsAdmin ? `${selectedInteractiveShell} (Elevated)` : selectedInteractiveShell} on {hostOs}...
+              </p>
+            </div>
+          )}
+
+          {interactiveConnectionError && !activeInteractiveSession && !isInteractiveStarting && (
             <div className="theme-error-banner rounded-xl p-4 shadow-md flex items-start justify-between gap-3 animate-in fade-in duration-200">
               <div className="flex items-start gap-3">
                 <WifiOff className="w-5 h-5 shrink-0 mt-0.5" />
@@ -148,7 +163,7 @@ export const InteractiveTab = ({
             </div>
           )}
 
-          {activeInteractiveSession && (
+          {activeInteractiveSession && !isInteractiveStarting && (
             <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-6 shadow-md space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-[#30363d]">
                 <div className="flex items-center gap-3">
