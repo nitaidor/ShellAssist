@@ -225,7 +225,7 @@ export const CodeAnalyzerTab = ({
                   disabled={isAnalyzerRunning || (!uploadedFile && !analyzerInput.trim())}
                   className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-900 disabled:opacity-50 text-white px-5 rounded-md font-medium text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 w-full md:w-auto shrink-0 h-10 min-w-[160px] border border-transparent"
                 >
-                  {isAnalyzerRunning ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Code className="w-4 h-4" /> Analyze Code</>}
+                  {isAnalyzerRunning ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Code className="w-4 h-4" /> Analyze</>}
                 </button>
               </div>
             </div>

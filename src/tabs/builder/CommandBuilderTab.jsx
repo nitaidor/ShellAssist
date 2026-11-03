@@ -336,7 +336,7 @@ export const CommandBuilderTab = ({
                   disabled={loading || (!uploadedFile && !request.trim())}
                   className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-900 disabled:opacity-50 text-white px-5 rounded-md font-medium text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 w-full md:w-auto shrink-0 h-10 min-w-[160px] border border-transparent"
                 >
-                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Play className="w-4 h-4 fill-current" /> {isAnalyzeMode ? `Analyze ${builderCtx.type}` : `Generate ${builderCtx.type}`}</>}
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Play className="w-4 h-4 fill-current" /> {isAnalyzeMode ? 'Analyze' : `Generate ${builderCtx.type}`}</>}
                 </button>
               </div>
             </div>

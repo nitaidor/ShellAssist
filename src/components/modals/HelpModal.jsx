@@ -97,7 +97,7 @@ export const HelpModal = ({ isOpen, onClose }) => {
               <ol className="text-sm text-gray-300 space-y-3 list-decimal list-inside">
                 <li>Run your command or script in your local terminal.</li>
                 <li>If it fails, either paste the full terminal output into the text box, or click <strong>Upload Script</strong> to attach your script file and paste the terminal error output into the text box alongside it.</li>
-                <li>Click <strong>Analyze Issue</strong>. The AI will explain the root cause and provide the corrected code or script. Paste any subsequent errors into the follow-up box to continue iterating.</li>
+                <li>Click <strong>Analyze</strong>. The AI will explain the root cause and provide the corrected code or script. Paste any subsequent errors into the follow-up box to continue iterating.</li>
               </ol>
             </div>
           </section>
