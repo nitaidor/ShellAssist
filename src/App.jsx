@@ -185,7 +185,7 @@ export default function App() {
   const [runInteractiveAsAdmin, setRunInteractiveAsAdmin] = useState(false);
   useEffect(() => { setSelectedInteractiveShell(interactiveShellOptions[0] || 'PowerShell'); }, [hostOs]);
 
-  // Tab 0: Simulated Terminal State (100% Simulated, including simulated Run as Admin)
+  // Tab 0: Simulated Terminal State
   const [selectedSimOs, setSelectedSimOs] = useState('Windows');
   const [selectedSimShell, setSelectedSimShell] = useState('PowerShell');
   const [runSimulatedAsAdmin, setRunSimulatedAsAdmin] = useState(false);
@@ -195,21 +195,21 @@ export default function App() {
   const [simulatedInitialInput, setSimulatedInitialInput] = useState('');
   const [simulatedNextInput, setSimulatedNextInput] = useState('');
   const [isSimulatedGenerating, setIsSimulatedGenerating] = useState(false);
-  const [simElevationModalPrompt, setSimElevationModalPrompt] = useState(null);
+  const [simElevationModalTurn, setSimElevationModalTurn] = useState(null);
   const [showSimNewSessionConfirmModal, setShowSimNewSessionConfirmModal] = useState(false);
   const [showSimStopSessionConfirmModal, setShowSimStopSessionConfirmModal] = useState(false);
   const [simulatedHistory, setSimulatedHistory] = useState(() => persisted.current?.simulatedHistory || []);
   const simCancelRef = useRef(0);
   const simExecCancelRef = useRef(0);
 
-  // Tab 1: Interactive Terminal State (Real Bridge)
+  // Tab 1: Interactive Terminal State
   const [activeInteractiveSession, setActiveInteractiveSession] = useState(null);
   const [interactiveConnectionError, setInteractiveConnectionError] = useState(null);
   const [lastFailedInteractiveTurn, setLastFailedInteractiveTurn] = useState(null);
   const [interactiveInitialInput, setInteractiveInitialInput] = useState('');
   const [interactiveNextInput, setInteractiveNextInput] = useState('');
   const [isInteractiveGenerating, setIsInteractiveGenerating] = useState(false);
-  const [elevationModalPrompt, setElevationModalPrompt] = useState(null);
+  const [elevationModalTurn, setElevationModalTurn] = useState(null);
   const interactiveCancelRef = useRef(0);
   const primaryExecCancelRef = useRef(0);
   const [interactiveHistory, setInteractiveHistory] = useState(() => persisted.current?.interactiveHistory || []);
@@ -223,8 +223,8 @@ export default function App() {
     showSettingsModal ||
     showAboutModal ||
     showTerminalDisclaimerModal ||
-    simElevationModalPrompt !== null ||
-    elevationModalPrompt !== null ||
+    simElevationModalTurn !== null ||
+    elevationModalTurn !== null ||
     showSimNewSessionConfirmModal ||
     showSimStopSessionConfirmModal ||
     showNewSessionConfirmModal ||
@@ -298,7 +298,7 @@ export default function App() {
     else setSettings(prev => ({ ...prev, enableExecution: false }));
   };
 
-  // ---------------- SIMULATED TERMINAL HANDLERS (100% SIMULATED) ----------------
+  // ---------------- SIMULATED TERMINAL HANDLERS ----------------
   const archiveAndCloseSimulatedSession = (sessionToArchive) => {
     if (!sessionToArchive) return;
     simCancelRef.current++;
@@ -345,16 +345,10 @@ export default function App() {
     setSimulatedNextInput('');
   };
 
+  // Turn is ALWAYS generated without premature blocking
   const handleGenerateSimulatedTurn = async (isInitial = false, overridePrompt = null) => {
     const promptText = overridePrompt !== null ? overridePrompt : (isInitial ? simulatedInitialInput : simulatedNextInput);
     if (!promptText.trim() || !activeSimulatedSession || isSimulatedGenerating) return;
-
-    const isSessionElevated = Boolean(activeSimulatedSession.ctx?.isElevated);
-
-    if (!isSessionElevated && checkRequiresElevation(promptText)) {
-      setSimElevationModalPrompt(promptText);
-      return;
-    }
 
     if (overridePrompt === null) {
       if (isInitial) setSimulatedInitialInput(''); else setSimulatedNextInput('');
@@ -368,14 +362,6 @@ export default function App() {
       if (simCancelRef.current !== genId) return;
 
       setApiStatus('valid');
-
-      const needsAdmin = Boolean(result.requiresElevation || checkRequiresElevation(result.command));
-      if (!isSessionElevated && needsAdmin) {
-        if (isInitial) setSimulatedInitialInput(promptText);
-        else setSimulatedNextInput(promptText);
-        setSimElevationModalPrompt(promptText);
-        return;
-      }
 
       const newTurn = {
         ...result,
@@ -483,13 +469,13 @@ export default function App() {
       setActiveSimulatedSession(prev => prev ? {
         ...prev,
         fullTranscript: updatedTranscript,
-        turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, fixStatus: 'success', fixResultMessage: res.message, fixResultOutput: res.output } : c) } : t)
+        turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, fixStatus: 'success', fixResultMessage: res.message, fixResultOutput: res.output } : t) } : t)
       } : prev);
     } else if (res.status === 'failed') {
       setActiveSimulatedSession(prev => prev ? {
         ...prev,
         fullTranscript: updatedTranscript,
-        turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, fixStatus: 'failed', fixResultMessage: res.message } : c) } : t)
+        turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, fixStatus: 'failed', fixResultMessage: res.message } : t) } : t)
       } : prev);
     } else {
       const nextCycleId = generateId();
@@ -510,9 +496,53 @@ export default function App() {
       } catch {
         setActiveSimulatedSession(prev => prev ? {
           ...prev,
-          turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === nextCycleId ? { ...c, isAnalyzing: false, fixExplanation: 'Failed to analyze subsequent error.', fixCommand: '' } : c) } : t)
+          turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === nextCycleId ? { ...c, isAnalyzing: false, fixExplanation: 'Failed to simulate subsequent fix.', fixCommand: '' } : c) } : t)
         } : prev);
       }
+    }
+  };
+
+  // Choice 3: End & Run as Admin in Simulated Terminal
+  const handleSimulatedEndAndRunAsAdmin = () => {
+    const targetTurn = simElevationModalTurn;
+    setSimElevationModalTurn(null);
+    setRunSimulatedAsAdmin(true);
+    if (activeSimulatedSession) archiveAndCloseSimulatedSession(activeSimulatedSession);
+
+    simCancelRef.current++;
+    simExecCancelRef.current++;
+    setSimulatedConnectionError(null);
+    setLastFailedSimulatedTurn(null);
+    setIsSimulatedGenerating(false);
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString(undefined, { hour12: settings.clockFormat === '12h' });
+    const sessionCtx = {
+      os: selectedSimOs,
+      shell: selectedSimShell,
+      type: 'Command',
+      isElevated: true,
+      isSimulated: true
+    };
+    const shellLabel = `${selectedSimShell} (Elevated)`;
+    const elevatedTurn = targetTurn ? { ...targetTurn, ctx: sessionCtx, runState: 'idle' } : null;
+
+    const newSession = {
+      id: generateId(),
+      dateTime: now.toLocaleString(),
+      unixTime: Date.now(),
+      ctx: sessionCtx,
+      turns: elevatedTurn ? [elevatedTurn] : [],
+      fullTranscript: `[${timeStr}] Connected to ${shellLabel} on ${selectedSimOs} (Simulated).\n`
+    };
+
+    setActiveSimulatedSession(newSession);
+    setSimulatedHistory(prev => [newSession, ...prev.filter(s => s.id !== newSession.id)]);
+    setSimulatedInitialInput('');
+    setSimulatedNextInput('');
+
+    if (elevatedTurn) {
+      setTimeout(() => executeSimulatedPrimaryCommand(elevatedTurn.id), 50);
     }
   };
 
@@ -570,16 +600,10 @@ export default function App() {
     setInteractiveNextInput('');
   };
 
+  // Turn is ALWAYS generated without premature blocking
   const handleGenerateInteractiveTurn = async (isInitial = false, overridePrompt = null) => {
     const promptText = overridePrompt !== null ? overridePrompt : (isInitial ? interactiveInitialInput : interactiveNextInput);
     if (!promptText.trim() || !activeInteractiveSession || isInteractiveGenerating) return;
-
-    const isSessionElevated = Boolean(activeInteractiveSession.ctx?.isElevated);
-
-    if (!isSessionElevated && checkRequiresElevation(promptText)) {
-      setElevationModalPrompt(promptText);
-      return;
-    }
 
     if (overridePrompt === null) {
       if (isInitial) setInteractiveInitialInput(''); else setInteractiveNextInput('');
@@ -592,14 +616,6 @@ export default function App() {
       if (interactiveCancelRef.current !== genId) return;
 
       setApiStatus('valid');
-
-      const needsAdmin = Boolean(result.requiresElevation || checkRequiresElevation(result.command));
-      if (!isSessionElevated && needsAdmin) {
-        if (isInitial) setInteractiveInitialInput(promptText);
-        else setInteractiveNextInput(promptText);
-        setElevationModalPrompt(promptText);
-        return;
-      }
 
       const newTurn = {
         ...result,
@@ -738,6 +754,60 @@ export default function App() {
     }
   };
 
+  // Choice 3: End & Run as Admin in Interactive Real Terminal
+  const handleInteractiveEndAndRunAsAdmin = async () => {
+    const targetTurn = elevationModalTurn;
+    setElevationModalTurn(null);
+    setRunInteractiveAsAdmin(true);
+
+    if (activeInteractiveSession) {
+      await archiveAndCloseActiveInteractiveSession(activeInteractiveSession);
+    }
+
+    interactiveCancelRef.current++;
+    primaryExecCancelRef.current++;
+    setInteractiveConnectionError(null);
+    setLastFailedInteractiveTurn(null);
+    setIsInteractiveGenerating(false);
+
+    const sessionCtx = {
+      os: hostOs,
+      shell: selectedInteractiveShell,
+      type: 'Command',
+      isElevated: true
+    };
+
+    const startRes = await startTerminalSession(sessionCtx, settings, false);
+    if (startRes?.status === 'failed') {
+      setInteractiveConnectionError(startRes.message || `Failed to start ${selectedInteractiveShell} session.`);
+      setActiveInteractiveSession(null);
+      return;
+    }
+
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString(undefined, { hour12: settings.clockFormat === '12h' });
+    const shellLabel = `${selectedInteractiveShell} (Elevated)`;
+    const elevatedTurn = targetTurn ? { ...targetTurn, ctx: sessionCtx, runState: 'idle' } : null;
+
+    const newSession = {
+      id: generateId(),
+      dateTime: now.toLocaleString(),
+      unixTime: Date.now(),
+      ctx: sessionCtx,
+      turns: elevatedTurn ? [elevatedTurn] : [],
+      fullTranscript: `[${timeStr}] Connected to ${shellLabel} on ${hostOs}.\n`
+    };
+
+    setActiveInteractiveSession(newSession);
+    setInteractiveHistory(prev => [newSession, ...prev.filter(s => s.id !== newSession.id)]);
+    setInteractiveInitialInput('');
+    setInteractiveNextInput('');
+
+    if (elevatedTurn) {
+      setTimeout(() => executeInteractivePrimaryCommand(elevatedTurn.id), 50);
+    }
+  };
+
   const handleClearHistoryConfirm = () => {
     if (historyClearModal === 'simulated') setSimulatedHistory([]);
     if (historyClearModal === 'interactive') setInteractiveHistory([]);
@@ -789,7 +859,7 @@ export default function App() {
         <TabNav activeTab={activeTab} setActiveTab={setActiveTab} />
 
         <main className="w-full max-w-4xl relative z-10">
-          {/* Tab 0: Simulated Terminal (Always available in both desktop & web browser) */}
+          {/* Tab 0: Simulated Terminal */}
           <div className={activeTab === 'simulated' ? 'block' : 'hidden'}>
             <SimulatedTab
               settings={settings}
@@ -846,10 +916,11 @@ export default function App() {
               }}
               onClearHistory={(t) => setHistoryClearModal(t)}
               filterHistory={filterHistory}
+              onOpenElevationModal={(turn) => setSimElevationModalTurn(turn)}
             />
           </div>
 
-          {/* Tab 1: Interactive Terminal (Pure Real Bridge) */}
+          {/* Tab 1: Interactive Terminal */}
           <div className={activeTab === 'interactive' ? 'block' : 'hidden'}>
             <InteractiveTab
               settings={settings}
@@ -907,6 +978,7 @@ export default function App() {
               }}
               onClearHistory={(t) => setHistoryClearModal(t)}
               filterHistory={filterHistory}
+              onOpenElevationModal={(turn) => setElevationModalTurn(turn)}
             />
           </div>
 
@@ -962,19 +1034,18 @@ export default function App() {
           }}
         />
 
-        {/* Simulated Tab: Requires Elevation Modal (100% Simulated Restart as Admin) */}
+        {/* Simulated Tab: Requires Elevation Modal (3 Choices) */}
         <RequiresElevationModal
-          isOpen={simElevationModalPrompt !== null}
+          isOpen={simElevationModalTurn !== null}
           activeShell={activeSimulatedSession?.ctx?.shell}
           isSimulated={true}
-          onClose={() => setSimElevationModalPrompt(null)}
-          onConfirmRestartAsAdmin={() => {
-            const promptToCopy = simElevationModalPrompt || '';
-            setSimElevationModalPrompt(null);
-            setRunSimulatedAsAdmin(true);
-            if (activeSimulatedSession) archiveAndCloseSimulatedSession(activeSimulatedSession);
-            initiateSimulatedSession(true, promptToCopy);
+          onClose={() => setSimElevationModalTurn(null)}
+          onConfirmRunCurrent={() => {
+            const targetTurn = simElevationModalTurn;
+            setSimElevationModalTurn(null);
+            if (targetTurn) executeSimulatedPrimaryCommand(targetTurn.id);
           }}
+          onConfirmRestartAndRunAsAdmin={handleSimulatedEndAndRunAsAdmin}
         />
 
         {/* Simulated Tab: New Session Confirmation Modal */}
@@ -1006,21 +1077,18 @@ export default function App() {
           }}
         />
 
-        {/* Interactive Tab: Requires Elevation Modal */}
+        {/* Interactive Tab: Requires Elevation Modal (3 Choices) */}
         <RequiresElevationModal
-          isOpen={elevationModalPrompt !== null}
+          isOpen={elevationModalTurn !== null}
           activeShell={activeInteractiveSession?.ctx?.shell}
           isSimulated={false}
-          onClose={() => setElevationModalPrompt(null)}
-          onConfirmRestartAsAdmin={async () => {
-            const promptToCopy = elevationModalPrompt || '';
-            setElevationModalPrompt(null);
-            setRunInteractiveAsAdmin(true);
-            if (activeInteractiveSession) {
-              await archiveAndCloseActiveInteractiveSession(activeInteractiveSession);
-            }
-            await initiateInteractiveSession(true, promptToCopy);
+          onClose={() => setElevationModalTurn(null)}
+          onConfirmRunCurrent={() => {
+            const targetTurn = elevationModalTurn;
+            setElevationModalTurn(null);
+            if (targetTurn) executeInteractivePrimaryCommand(targetTurn.id);
           }}
+          onConfirmRestartAndRunAsAdmin={handleInteractiveEndAndRunAsAdmin}
         />
 
         {/* Interactive Tab: New Session Confirmation Modal */}

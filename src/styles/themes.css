@@ -374,6 +374,78 @@ html.theme-light:not(.theme-monochrome) .btn-modal-cancel:hover {
   color: #111827 !important;
 }
 
+/* Requires Elevation Button Strict Theme Adherence */
+.btn-elevation-action {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+  border: 1px solid rgba(245, 158, 11, 0.5) !important;
+  color: #facc15 !important;
+  transition: all 120ms ease;
+}
+.btn-elevation-action:hover:not(:disabled) {
+  background-color: rgba(245, 158, 11, 0.25) !important;
+  border-color: #facc15 !important;
+}
+.btn-elevation-action svg {
+  color: #facc15 !important;
+  stroke: #facc15 !important;
+}
+
+.theme-terminal-green .btn-elevation-action {
+  background-color: #000000 !important;
+  border: 1px solid #22c55e !important;
+  color: #4ade80 !important;
+}
+.theme-terminal-green .btn-elevation-action:hover:not(:disabled) {
+  background-color: rgba(34, 197, 94, 0.25) !important;
+}
+.theme-terminal-green .btn-elevation-action svg {
+  color: #4ade80 !important;
+  stroke: #4ade80 !important;
+}
+
+.theme-terminal-red .btn-elevation-action {
+  background-color: #000000 !important;
+  border: 1px solid #ef4444 !important;
+  color: #f87171 !important;
+}
+.theme-terminal-red .btn-elevation-action:hover:not(:disabled) {
+  background-color: rgba(239, 68, 68, 0.25) !important;
+}
+.theme-terminal-red .btn-elevation-action svg {
+  color: #f87171 !important;
+  stroke: #f87171 !important;
+}
+
+.theme-monochrome .btn-elevation-action,
+html.theme-monochrome .btn-elevation-action {
+  background-color: #ffffff !important;
+  border: 1px solid #111827 !important;
+  color: #111827 !important;
+}
+.theme-monochrome .btn-elevation-action:hover:not(:disabled),
+html.theme-monochrome .btn-elevation-action:hover:not(:disabled) {
+  background-color: #e5e7eb !important;
+}
+.theme-monochrome .btn-elevation-action svg,
+html.theme-monochrome .btn-elevation-action svg {
+  color: #111827 !important;
+  stroke: #111827 !important;
+}
+
+html.theme-light:not(.theme-monochrome) .btn-elevation-action {
+  background-color: #fffbeb !important;
+  border: 1px solid #f59e0b !important;
+  color: #b45309 !important;
+}
+html.theme-light:not(.theme-monochrome) .btn-elevation-action:hover:not(:disabled) {
+  background-color: #fef3c7 !important;
+  border-color: #d97706 !important;
+}
+html.theme-light:not(.theme-monochrome) .btn-elevation-action svg {
+  color: #b45309 !important;
+  stroke: #b45309 !important;
+}
+
 /* Clear History Button Base & Hover Adherence */
 .btn-clear-history {
   color: var(--theme-text-muted) !important;
@@ -450,7 +522,7 @@ html.theme-light:not(.theme-monochrome) .btn-star-unselected:hover {
   color: #d97706 !important;
 }
 
-/* Star Button & Inline Star Icons: Active / Starred (Strictly Transparent Background When Not Hovered) */
+/* Star Button & Inline Star Icons: Active / Starred */
 .btn-star-active,
 .theme-terminal-green .btn-star-active,
 .theme-terminal-red .btn-star-active,
@@ -742,7 +814,7 @@ html.theme-light:not(.theme-monochrome) .modal-close-btn svg {
   stroke: currentColor !important;
 }
 
-/* Modal Copy & Dismiss Buttons Theme Adherence */
+/* Modal Action Buttons Theme Adherence */
 .btn-modal-action {
   background-color: var(--theme-surface-hover) !important;
   border: 1px solid var(--theme-border) !important;

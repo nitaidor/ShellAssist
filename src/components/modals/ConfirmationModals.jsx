@@ -29,11 +29,18 @@ export const TerminalDisclaimerModal = ({ isOpen, onClose, onConfirm }) => {
   );
 };
 
-export const RequiresElevationModal = ({ isOpen, activeShell, isSimulated = false, onClose, onConfirmRestartAsAdmin }) => {
+export const RequiresElevationModal = ({
+  isOpen,
+  activeShell,
+  isSimulated = false,
+  onClose,
+  onConfirmRunCurrent,
+  onConfirmRestartAndRunAsAdmin
+}) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[65] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-[#161b22] border border-[#30363d] p-6 rounded-xl max-w-md w-full shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-[#161b22] border border-[#30363d] p-6 rounded-xl max-w-lg w-full shadow-2xl animate-in fade-in zoom-in-95 duration-200">
         <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
           <ShieldAlert className="w-5 h-5 theme-modal-warning-icon shrink-0" />
           {isSimulated ? 'Simulated Admin Privileges' : 'Requires Administrator Privileges'}
@@ -43,8 +50,8 @@ export const RequiresElevationModal = ({ isOpen, activeShell, isSimulated = fals
             <p className="text-gray-300 text-sm mb-3 leading-relaxed">
               The command you requested requires <strong>Administrator Privileges</strong>, but your current simulated <strong>{activeShell || 'terminal'}</strong> session has standard permissions.
             </p>
-            <div className="p-3 rounded-md text-xs mb-6 leading-relaxed modal-warning-panel">
-              Because a simulated terminal session cannot be elevated mid-session, you need to end this session and start a new simulated session with <strong>Run as Admin</strong> enabled (<strong>100% simulated</strong>, no OS UAC prompt). Your prompt will be automatically copied over.
+            <div className="p-3.5 rounded-md text-xs mb-6 leading-relaxed modal-warning-panel space-y-1.5">
+              You can choose to <strong>Cancel</strong> and continue editing, <strong>Run in Current Session</strong> (which will simulate standard user permissions), or <strong>End & Run as Admin</strong> (which will archive this session, start a new elevated session, and immediately execute the command as simulated Admin).
             </div>
           </>
         ) : (
@@ -52,25 +59,32 @@ export const RequiresElevationModal = ({ isOpen, activeShell, isSimulated = fals
             <p className="text-gray-300 text-sm mb-3 leading-relaxed">
               The command you requested requires <strong>Administrator Privileges</strong>, but your current <strong>{activeShell || 'terminal'}</strong> session is running with standard permissions.
             </p>
-            <div className="p-3 rounded-md text-xs mb-6 leading-relaxed modal-warning-panel">
-              Because an active terminal process cannot be elevated mid-session without losing its state and output stream, you need to end this session and start a new session with <strong>Run as Admin</strong> enabled. Your current prompt will be automatically copied into the new elevated session.
+            <div className="p-3.5 rounded-md text-xs mb-6 leading-relaxed modal-warning-panel space-y-1.5">
+              Because terminal processes cannot elevate mid-session, you can choose to <strong>Cancel</strong> and continue editing, <strong>Run in Current Session</strong> (which will execute with standard permissions and may return an access-denied error), or <strong>End & Run as Admin</strong> (which will archive this session, start a new elevated session, and immediately execute the command as Administrator).
             </div>
           </>
         )}
-        <div className="flex justify-end gap-3">
+        <div className="flex justify-end gap-2.5 flex-wrap">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-md text-sm font-medium btn-modal-cancel whitespace-nowrap"
+            className="px-3.5 py-2 rounded-md text-sm font-medium btn-modal-cancel whitespace-nowrap"
           >
-            Dismiss & Keep Editing
+            Cancel
           </button>
           <button
             type="button"
-            onClick={onConfirmRestartAsAdmin}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors border border-transparent shadow-sm flex items-center gap-1.5 whitespace-nowrap"
+            onClick={onConfirmRunCurrent}
+            className="px-3.5 py-2 rounded-md text-sm font-medium btn-elevation-action whitespace-nowrap"
           >
-            <ShieldAlert className="w-4 h-4 shrink-0" /> End & Start as Admin
+            Run in Current Session
+          </button>
+          <button
+            type="button"
+            onClick={onConfirmRestartAndRunAsAdmin}
+            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors border border-transparent shadow-sm flex items-center gap-1.5 whitespace-nowrap"
+          >
+            <ShieldAlert className="w-4 h-4 shrink-0" /> End & Run as Admin
           </button>
         </div>
       </div>

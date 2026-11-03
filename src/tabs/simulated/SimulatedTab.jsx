@@ -37,7 +37,8 @@ export const SimulatedTab = ({
   onCancelDebugCycle,
   onCancelAutoDebugAnalysis,
   onClearHistory,
-  filterHistory
+  filterHistory,
+  onOpenElevationModal
 }) => {
   const [simulatedSearch, setSimulatedSearch] = useState('');
   const [isActiveTranscriptExpanded, setIsActiveTranscriptExpanded] = useState(false);
@@ -81,7 +82,6 @@ export const SimulatedTab = ({
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2.5 bg-[#0d1117] p-2 rounded-lg border border-[#30363d] shrink-0">
-                {/* Interactive OS Selector */}
                 <CustomSelect
                   value={selectedSimOs}
                   onChange={(newOs) => {
@@ -94,7 +94,6 @@ export const SimulatedTab = ({
                   }}
                   options={OS_OPTIONS}
                 />
-                {/* Dynamic Shell Selector for selected OS */}
                 <CustomSelect
                   value={selectedSimShell}
                   onChange={(val) => {
@@ -102,7 +101,6 @@ export const SimulatedTab = ({
                   }}
                   options={currentShellOptions}
                 />
-                {/* 100% Simulated Run as Admin Toggle */}
                 <label
                   className="h-10 px-3 rounded-md border border-[#30363d] bg-[#21262d] flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-300 select-none transition-colors cursor-pointer hover:text-white"
                   title="Simulate session with Administrator / root privileges (100% simulated, no OS UAC prompt)"
@@ -202,6 +200,7 @@ export const SimulatedTab = ({
                       onRunFixCommand={onRunFixCommand}
                       onCancelDebugCycle={onCancelDebugCycle}
                       onCancelAutoDebugAnalysis={onCancelAutoDebugAnalysis}
+                      onOpenElevationModal={onOpenElevationModal}
                     />
                   ))}
                 </div>

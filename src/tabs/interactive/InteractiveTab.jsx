@@ -37,7 +37,8 @@ export const InteractiveTab = ({
   onCancelDebugCycle,
   onCancelAutoDebugAnalysis,
   onClearHistory,
-  filterHistory
+  filterHistory,
+  onOpenElevationModal
 }) => {
   const [interactiveSearch, setInteractiveSearch] = useState('');
   const [isActiveTranscriptExpanded, setIsActiveTranscriptExpanded] = useState(false);
@@ -204,6 +205,7 @@ export const InteractiveTab = ({
                       onRunFixCommand={onRunFixCommand}
                       onCancelDebugCycle={onCancelDebugCycle}
                       onCancelAutoDebugAnalysis={onCancelAutoDebugAnalysis}
+                      onOpenElevationModal={onOpenElevationModal}
                     />
                   ))}
                 </div>
@@ -256,7 +258,7 @@ export const InteractiveTab = ({
                 </div>
               )}
 
-              {/* Error Banner moved BELOW prompts and turns */}
+              {/* Error Banner */}
               {interactiveConnectionError && (
                 <div className="theme-error-banner rounded-xl p-4 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
                   <div className="flex items-start gap-3">

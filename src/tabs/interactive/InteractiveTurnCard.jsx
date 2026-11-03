@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Loader2, Terminal, ChevronUp, ChevronDown, CheckCircle2, WifiOff, Ban } from 'lucide-react';
+import { Loader2, Terminal, ChevronUp, ChevronDown, CheckCircle2, WifiOff, Ban, ShieldAlert } from 'lucide-react';
 import InteractiveCommand from '../../components/terminal/InteractiveCommand';
 import InteractiveDebugCycleItem from './InteractiveDebugCycleItem';
+import { checkRequiresElevation } from '../../utils/platform';
 
 export const InteractiveTurnCard = ({
   turn,
@@ -15,7 +16,8 @@ export const InteractiveTurnCard = ({
   onRunFixCommand,
   onCancelDebugCycle,
   onCancelAutoDebugAnalysis,
-  onUpdateTokens
+  onUpdateTokens,
+  onOpenElevationModal
 }) => {
   const [isExpanded, setIsExpanded] = useState(isReadOnly ? false : isLast);
   useEffect(() => {
@@ -24,19 +26,36 @@ export const InteractiveTurnCard = ({
 
   const isPrimaryLocked = !isLast || ['running','success','error','cancelled'].includes(turn.runState);
   const isPrimaryRetry = turn.runState === 'failed';
+
+  // Check if this specific turn requires admin elevation in a standard session
+  const needsElevation = Boolean(turn.requiresElevation || checkRequiresElevation(turn.command));
+  const isSessionElevated = Boolean(ctx?.isElevated);
+  const showElevationBtn = !isSessionElevated && needsElevation && turn.runState === 'idle';
+
   const customRunBtn = !isReadOnly ? (
-    <button
-      type="button"
-      onClick={() => !isPrimaryLocked && onRunPrimaryCommand(turn.id)}
-      disabled={isPrimaryLocked}
-      className={`${!isPrimaryLocked ? 'bg-blue-600 hover:bg-blue-700 text-white border-transparent' : 'bg-[#21262d] opacity-50 cursor-not-allowed border-[#30363d] text-gray-400'} border px-4 py-1.5 rounded-md font-medium flex items-center gap-2 shadow-sm text-sm transition-colors`}
-    >
-      {turn.runState === 'running' ? (
-        <Loader2 className="w-4 h-4 animate-spin" />
-      ) : (
-        <><Terminal className="w-4 h-4" /> {isPrimaryRetry ? 'Retry' : 'Run'}</>
-      )}
-    </button>
+    showElevationBtn ? (
+      <button
+        type="button"
+        onClick={() => !isPrimaryLocked && onOpenElevationModal && onOpenElevationModal(turn)}
+        disabled={isPrimaryLocked}
+        className={`${!isPrimaryLocked ? 'btn-elevation-action border' : 'bg-[#21262d] opacity-50 cursor-not-allowed border-[#30363d] text-gray-400 border'} px-3.5 py-1.5 rounded-md font-medium flex items-center gap-1.5 shadow-sm text-sm transition-colors`}
+      >
+        <ShieldAlert className="w-4 h-4 shrink-0" /> Requires Elevation
+      </button>
+    ) : (
+      <button
+        type="button"
+        onClick={() => !isPrimaryLocked && onRunPrimaryCommand(turn.id)}
+        disabled={isPrimaryLocked}
+        className={`${!isPrimaryLocked ? 'bg-blue-600 hover:bg-blue-700 text-white border-transparent' : 'bg-[#21262d] opacity-50 cursor-not-allowed border-[#30363d] text-gray-400'} border px-4 py-1.5 rounded-md font-medium flex items-center gap-2 shadow-sm text-sm transition-colors`}
+      >
+        {turn.runState === 'running' ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <><Terminal className="w-4 h-4" /> {isPrimaryRetry ? 'Retry' : 'Run'}</>
+        )}
+      </button>
+    )
   ) : null;
 
   return (
