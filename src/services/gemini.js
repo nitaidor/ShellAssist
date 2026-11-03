@@ -221,7 +221,7 @@ const callAiProvider = async (systemPrompt, userMessages, settings) => {
     return data.content?.[0]?.text || "";
   }
 
-  // 4. OLLAMA (LOCAL AI) - Requires an explicitly saved configuration
+  // 4. OLLAMA (LOCAL AI)
   if (provider === 'ollama') {
     const hasSavedConfig = Array.isArray(settings?.savedLocalConfigs) && settings.savedLocalConfigs.length > 0;
     const cleanUrl = (settings?.localEndpoint || "").trim().replace(/\/+$/, '');
@@ -267,7 +267,6 @@ export const fetchCommandGeneration = async (requestText, previousTurns = [], ct
   const cleanOs = (ctx?.os || 'Windows').replace(/\s*\(Simulated\)/i, '').trim();
   const isScript = ctx?.type === 'Script';
 
-  // Strict structural differentiation: Commands must be single-line one-liners; Scripts must be multi-line readable code blocks
   const typeRule = isScript
     ? `STRUCTURAL FORMAT (MANDATORY): The user selected "Script". You MUST generate standard, readable, multi-line indented code with newlines and proper spacing. Do NOT compress the code into a single line or chain it with semicolons.`
     : `STRUCTURAL FORMAT (MANDATORY): The user selected "Command". You MUST provide a SINGLE-LINE command string suitable for immediate terminal execution (using pipes '|', operators '&&' or ';', or inline loops). Do NOT use multi-line line breaks in the command string.`;
@@ -333,9 +332,9 @@ export const fetchCommandSimulation = async (command, ctx, sessionTranscript = "
   const isElevated = Boolean(ctx?.isElevated);
 
   const systemPrompt = `You are a realistic terminal execution engine simulating ${cleanShell} on ${cleanOs} (Elevated/Admin Privileges: ${isElevated ? 'Yes' : 'No'}). 
-Evaluate whether this command is syntactically valid and plausible in this environment.
-If valid, simulate a realistic execution output (stdout/stderr). If it queries or lists items (e.g., network adapters, VMs, processes, files), format a realistic tabular or structured console response.
-If the command contains syntax errors, references invalid flags, or targets non-existent resources without creation parameters, simulate the realistic console error message with exit code 1.
+CRITICAL PERMISSIONS RULE: If Elevated/Admin Privileges is 'No', and the executed command requires administrator, root, or elevated privileges (e.g., Get-VM, Start-VM, Stop-VM, New-VM, Set-VM, Restart-Service, Stop-Service, Start-Service, Set-Service, diskpart, netsh, sfc, bcdedit, iptables, ufw, apt install, sudo, etc.), you MUST simulate a realistic permission error (e.g., Access Denied, Operation requires elevation, or Hyper-V permission failure) with "status": "error" and non-zero exit code.
+If valid and permitted, simulate a realistic execution output (stdout/stderr). If it queries or lists items (e.g., network adapters, VMs, processes, files), format a realistic tabular or structured console response.
+If the command contains syntax errors, references invalid flags, or targets non-existent resources without creation parameters, simulate the realistic console error message with exit code 1 and "status": "error".
 Return STRICTLY a JSON object matching this schema:
 {
   "status": "success" or "error",

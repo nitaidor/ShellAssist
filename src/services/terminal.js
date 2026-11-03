@@ -45,7 +45,7 @@ export const executeTerminalCommand = async (
   isSimulated = false,
   useActiveSession = false
 ) => {
-  // 1. Simulated Terminal Mode: Uses your active AI provider (Gemini, ChatGPT, Claude, or Ollama) in Smart Mode
+  // 1. Simulated Terminal Mode: Uses your active AI provider in Smart Mode
   if (isSimulated) {
     try {
       const parsed = await fetchCommandSimulation(command, ctx, sessionTranscript, settings);
@@ -64,8 +64,8 @@ export const executeTerminalCommand = async (
     }
   }
 
-  // 2. Real Terminal Mode: Strictly runs through local desktop processes
-  const needsElevation = Boolean(ctx?.isElevated || forceElevate || checkRequiresElevation(command));
+  // 2. Real Terminal Mode: Strictly respects the current session without escalating behind your back
+  const needsElevation = Boolean(forceElevate || ctx?.isElevated);
   const cleanShell = (ctx?.shell || 'PowerShell').replace(/\s*\(Elevated\)/i, '').trim();
   const cleanOs = (ctx?.os || 'Windows').replace(/\s*\(Simulated\)/i, '').trim();
 
