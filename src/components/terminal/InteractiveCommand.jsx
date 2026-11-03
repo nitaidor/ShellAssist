@@ -49,16 +49,11 @@ export const ensureTokenSpacing = (tokens = [], rawCommand = '') => {
 
   for (let i = 0; i < tokens.length; i++) {
     const cur = tokens[i];
-    if (!cur || !cur.text) continue;
+    // Skip empty or pure-whitespace/newline tokens so indentation is never hoverable
+    if (!cur || !cur.text || !cur.text.trim()) continue;
 
-    let tokenText = cur.text;
-    let foundIdx = cleanCmd.indexOf(tokenText, cmdCursor);
-
-    // If exact token not found, try searching with trimmed text
-    if (foundIdx === -1 && tokenText.trim() && tokenText.trim() !== tokenText) {
-      tokenText = tokenText.trim();
-      foundIdx = cleanCmd.indexOf(tokenText, cmdCursor);
-    }
+    const tokenText = cur.text.trim();
+    const foundIdx = cleanCmd.indexOf(tokenText, cmdCursor);
 
     // If the token does not exist at or after cmdCursor, skip it to prevent desyncing cmdCursor
     if (foundIdx === -1) {
