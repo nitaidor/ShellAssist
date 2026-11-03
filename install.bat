@@ -97,7 +97,7 @@ ie4uinit.exe -show >nul 2>nul
 if exist "dist-exe" (
     echo.
     echo ============================================================================
-    echo   SUCCESS! ShellAssist v!APP_VER! Installer ^& Portable EXE created in:
+    echo   SUCCESS: ShellAssist v!APP_VER! Installer ^& Portable EXE created in:
     echo   %~dp0dist-exe
     echo ============================================================================
     explorer "%~dp0dist-exe"
