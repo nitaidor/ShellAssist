@@ -34,28 +34,28 @@ export const Header = ({ isDarkMode, settings, apiStatus, showMenu, setShowMenu,
 
     if (!info.hasKey) {
       return (
-        <span className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider rounded border flex items-center gap-1.5 status-badge-warning shadow-sm leading-none w-fit">
-          <AlertTriangle className="w-3.5 h-3.5" /> Missing API Key
+        <span className="px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider rounded border flex items-center gap-1.5 status-badge-warning shadow-sm leading-none w-fit mb-[2px]">
+          <AlertTriangle className="w-3 h-3" /> Missing API Key
         </span>
       );
     }
     if (apiStatus === 'checking') {
       return (
-        <span className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider rounded border flex items-center gap-1.5 status-badge-checking shadow-sm leading-none w-fit">
-          <Loader2 className="w-3.5 h-3.5 animate-spin" /> {info.label} (Checking...)
+        <span className="px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider rounded border flex items-center gap-1.5 status-badge-checking shadow-sm leading-none w-fit mb-[2px]">
+          <Loader2 className="w-3 h-3 animate-spin" /> {info.label} (Checking...)
         </span>
       );
     }
     if (apiStatus === 'invalid') {
       return (
-        <span className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider rounded border flex items-center gap-1.5 status-badge-error shadow-sm leading-none w-fit">
-          <XCircle className="w-3.5 h-3.5" /> {settings.apiProvider === 'ollama' ? 'Local AI Offline' : 'Wrong API Key'}
+        <span className="px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider rounded border flex items-center gap-1.5 status-badge-error shadow-sm leading-none w-fit mb-[2px]">
+          <XCircle className="w-3 h-3" /> {settings.apiProvider === 'ollama' ? 'Local AI Offline' : 'Wrong API Key'}
         </span>
       );
     }
     return (
-      <span className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider rounded border flex items-center gap-1.5 status-badge-valid shadow-sm leading-none w-fit">
-        <CheckCircle2 className="w-3.5 h-3.5" /> {info.label} ({info.model})
+      <span className="px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider rounded border flex items-center gap-1.5 status-badge-valid shadow-sm leading-none w-fit mb-[2px]">
+        <CheckCircle2 className="w-3 h-3" /> {info.label} ({info.model})
       </span>
     );
   };
@@ -66,15 +66,13 @@ export const Header = ({ isDarkMode, settings, apiStatus, showMenu, setShowMenu,
         <TerminalSquare className="w-10 h-10 header-logo shrink-0" />
 
         <div>
-          <div className="flex items-center gap-3.5 flex-wrap">
+          {/* items-end anchors both the title and badge to the bottom baseline */}
+          <div className="flex items-end gap-3 flex-wrap">
             <h1 className={`text-3xl font-bold tracking-tight leading-none ${!isDarkMode ? 'text-gray-900' : 'text-white'}`}>
               ShellAssist
             </h1>
 
-            {/* Prominent, Larger AI Model Badge */}
-            <div className="flex items-center">
-              {renderBadge()}
-            </div>
+            {renderBadge()}
           </div>
           <p className="text-sm text-gray-400 mt-1.5">Translate English to code, reverse-engineer scripts, and debug errors.</p>
         </div>
