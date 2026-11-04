@@ -942,7 +942,7 @@ export default function App() {
               hostOs={hostOs}
               isDesktopEnv={isDesktopEnv}
               interactiveShellOptions={interactiveShellOptions}
-              selectedInteractiveShell={setSelectedInteractiveShell}
+              selectedInteractiveShell={selectedInteractiveShell}
               setSelectedInteractiveShell={setSelectedInteractiveShell}
               runInteractiveAsAdmin={runInteractiveAsAdmin}
               setRunInteractiveAsAdmin={setRunInteractiveAsAdmin}
