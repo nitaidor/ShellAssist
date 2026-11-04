@@ -273,7 +273,9 @@ export const fetchCommandGeneration = async (requestText, previousTurns = [], ct
 
   const tokenRule = `TOKENIZATION RULE (CRITICAL): The "tokens" array must break "command" down into GRANULAR, ATOMIC tokens in sequential order from start to finish: (1) individual cmdlets/commands (e.g. "Get-VM"), (2) individual flags/parameters (e.g. "-ComputerName"), (3) individual variables (e.g. "$Server"), (4) individual keywords (e.g. "if", "foreach"), (5) individual operators/delimiters (e.g. "=", "|", ";", "{"), (6) string/number literals, and (7) entire comments (e.g. "# This is a comment"). Treat an entire comment block as a single token. NEVER group a multi-token block, loop body, or pipeline into one giant token, and NEVER use "..." placeholders.`;
   const nonInteractiveRule = `IMPORTANT: Because commands execute in a non-interactive background bridge that cannot accept mid-execution stdin keystrokes (like [Y/N] prompts), ALWAYS append non-interactive confirmation flags where applicable (e.g., -Confirm:$false, -Force, -y, --yes, --no-input, /y) so the command never hangs waiting for user confirmation.`;
-  const elevationRule = `Set "requiresElevation" to true if executing this command on ${cleanOs} typically requires Administrator / root / elevated privileges (e.g., managing Hyper-V VMs like Start-VM/Stop-VM/Get-VM, modifying system services, firewall rules, network adapters, disk partitions, system registry, or sudo operations), otherwise false.`;
+  
+  // Smart, contextual elevation rule evaluated purely on the complete command and its subcommands/flags
+  const elevationRule = `Evaluate the complete command and its exact subcommands/flags on ${cleanOs}, and set "requiresElevation" to true ONLY if executing it actually requires Administrator, root, or elevated privileges (or false if it can run under standard user permissions).`;
 
   const systemPrompt = `You are an expert ${cleanShell} assistant on ${cleanOs}. ${typeRule} ${tokenRule} ${nonInteractiveRule} ${elevationRule} Return STRICTLY a JSON object matching this schema: { "summary": "...", "overallExplanation": "...", "command": "...", "tokens": [ { "text": "...", "explanation": "...", "context": "..." } ], "hasAlternative": false, "alternativeText": "", "riskLevel": "Low", "riskExplanation": "", "requiresElevation": false }`;
 
@@ -317,14 +319,14 @@ export const fetchInteractiveAutoDebug = async (prompt, failedCommand, fullTermi
   const cleanShell = (ctx?.shell || 'PowerShell').replace(/\s*\(Elevated\)/i, '').trim();
   const cleanOs = (ctx?.os || 'Windows').replace(/\s*\(Simulated\)/i, '').trim();
 
-  const systemPrompt = `You are an automated ${cleanShell} debugger on ${cleanOs}. Always append non-interactive confirmation flags where applicable (e.g., -Confirm:$false, -Force, -y, --no-input) so the fix command never hangs waiting for [Y/N] user input. Return STRICTLY a JSON object: { "explanation": "...", "fixCommand": "..." }`;
+  const systemPrompt = `You are an automated ${cleanShell} debugger on ${cleanOs}. Always append non-interactive confirmation flags where applicable (e.g., -Confirm:$false, -Force, -y, --no-input) so the fix command never hangs waiting for [Y/N] user input. Evaluate whether the fixCommand requires Administrator, root, or elevated privileges on ${cleanOs} and set "requiresElevation" accordingly. Return STRICTLY a JSON object: { "explanation": "...", "fixCommand": "...", "requiresElevation": false }`;
   const userMessages = [{ role: "user", text: `User Objective: "${prompt}"\nFailed Command: "${failedCommand}"\nOutput:\n${fullTerminalTranscript}` }];
 
   const raw = await callAiProvider(systemPrompt, userMessages, settings);
   return cleanJsonResponse(raw);
 };
 
-// Universal Terminal Simulation Engine: Runs through whichever AI provider you selected (Gemini, ChatGPT, Claude, or Ollama)
+// Universal Terminal Simulation Engine
 export const fetchCommandSimulation = async (command, ctx, sessionTranscript = "", settingsOrKey = '') => {
   const settings = typeof settingsOrKey === 'object' ? settingsOrKey : { apiKey: settingsOrKey, apiProvider: 'gemini' };
   const cleanShell = (ctx?.shell || 'PowerShell').replace(/\s*\(Elevated\)/i, '').trim();
@@ -332,7 +334,7 @@ export const fetchCommandSimulation = async (command, ctx, sessionTranscript = "
   const isElevated = Boolean(ctx?.isElevated);
 
   const systemPrompt = `You are a realistic terminal execution engine simulating ${cleanShell} on ${cleanOs} (Elevated/Admin Privileges: ${isElevated ? 'Yes' : 'No'}). 
-CRITICAL PERMISSIONS RULE: If Elevated/Admin Privileges is 'No', and the executed command requires administrator, root, or elevated privileges (e.g., Get-VM, Start-VM, Stop-VM, New-VM, Set-VM, Restart-Service, Stop-Service, Start-Service, Set-Service, diskpart, netsh, sfc, bcdedit, iptables, ufw, apt install, sudo, etc.), you MUST simulate a realistic permission error (e.g., Access Denied, Operation requires elevation, or Hyper-V permission failure) with "status": "error" and non-zero exit code.
+CRITICAL PERMISSIONS RULE: If Elevated/Admin Privileges is 'No', evaluate the command and its exact subcommands/flags. If executing it requires Administrator, root, or elevated privileges on ${cleanOs}, you MUST simulate a realistic permission error (e.g., Access Denied, Operation requires elevation, or insufficient privileges) with "status": "error" and non-zero exit code.
 If valid and permitted, simulate a realistic execution output (stdout/stderr). If it queries or lists items (e.g., network adapters, VMs, processes, files), format a realistic tabular or structured console response.
 If the command contains syntax errors, references invalid flags, or targets non-existent resources without creation parameters, simulate the realistic console error message with exit code 1 and "status": "error".
 Return STRICTLY a JSON object matching this schema:
@@ -370,14 +372,18 @@ export const fetchStandaloneDebug = async (messages = [], ctx, settingsOrKey = '
   const cleanShell = (ctx?.shell || 'shell').replace(/\s*\(Elevated\)/i, '').trim();
   const cleanOs = (ctx?.os || 'Windows').replace(/\s*\(Simulated\)/i, '').trim();
 
-  const systemPrompt = `You are an expert ${cleanShell} debugger on ${cleanOs}. The user is working with a ${ctx?.type || 'Command'}. Always provide a suggested fix or corrected ${(ctx?.type || 'command').toLowerCase()} with non-interactive flags where applicable (e.g. -Confirm:$false, -Force, -y) and wrap any suggested code fixes, commands, or scripts inside standard markdown code blocks (\`\`\`). Return STRICTLY JSON: {"summary": "A brief summary", "analysis": "Your detailed explanation and fixes."}`;
+  const systemPrompt = `You are an expert ${cleanShell} debugger on ${cleanOs}. The user is working with a ${ctx?.type || 'Command'}. Always provide a suggested fix or corrected ${(ctx?.type || 'command').toLowerCase()} with non-interactive flags where applicable (e.g. -Confirm:$false, -Force, -y) and wrap any suggested code fixes, commands, or scripts inside standard markdown code blocks (\`\`\`). Evaluate if the suggested fix requires Administrator or root privileges and return "requiresElevation" accordingly. Return STRICTLY JSON: {"summary": "A brief summary", "analysis": "Your detailed explanation and fixes.", "requiresElevation": false}`;
   const userMessages = messages.map(msg => ({ role: msg.role === 'model' ? 'assistant' : msg.role, text: msg.text }));
 
   const raw = await callAiProvider(systemPrompt, userMessages, settings);
   try {
     const parsed = cleanJsonResponse(raw);
-    return { summary: parsed.summary || "Debug Session", analysis: parsed.analysis || "" };
+    return { 
+      summary: parsed.summary || "Debug Session", 
+      analysis: parsed.analysis || "",
+      requiresElevation: Boolean(parsed.requiresElevation)
+    };
   } catch {
-    return { summary: "Debug Session", analysis: raw };
+    return { summary: "Debug Session", analysis: raw, requiresElevation: false };
   }
 };

@@ -1,4 +1,3 @@
-import { checkRequiresElevation } from '../utils/platform';
 import { fetchCommandSimulation } from './gemini';
 
 export const startTerminalSession = async (ctx, settings, isSimulated = false) => {

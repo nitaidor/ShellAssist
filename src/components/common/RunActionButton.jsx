@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, AlertCircle, X, Terminal, Loader2, Copy, TerminalSquare, Ban } from 'lucide-react';
 import { executeTerminalCommand } from '../../services/terminal';
-import { checkRequiresElevation } from '../../utils/platform';
 import ContextTags from './ContextTags';
 
 export const RunActionButton = ({ command, ctx, settings, onErrorOutput, size = 'md', requiresElevation = false }) => {
@@ -27,7 +26,8 @@ export const RunActionButton = ({ command, ctx, settings, onErrorOutput, size = 
   const isDesktop = typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.runCommand === 'function';
   const isWebViewRestricted = !isDesktop;
 
-  const needsAdmin = Boolean(requiresElevation || checkRequiresElevation(command));
+  // Smart AI elevation check: Evaluated purely on the AI's requiresElevation assessment
+  const needsAdmin = Boolean(requiresElevation);
   const isButtonDisabled = !settings?.enableExecution || isWebViewRestricted || runState === 'running';
 
   const getButtonTitle = () => {

@@ -38,6 +38,7 @@ export const AnalyzerHistoryItem = ({ session, settings, onUpdateTokens }) => {
             riskLevel={session.turn.riskLevel}
             riskExplanation={session.turn.riskExplanation}
             overallExplanation={session.turn.overallExplanation}
+            requiresElevation={session.turn.requiresElevation}
             deepBreakdownComplete={Boolean(session.turn.deepBreakdownComplete)}
             onUpdateTokens={onUpdateTokens}
             runCtx={session.ctx}

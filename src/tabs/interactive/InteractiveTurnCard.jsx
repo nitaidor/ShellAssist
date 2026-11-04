@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Loader2, Terminal, ChevronUp, ChevronDown, CheckCircle2, WifiOff, Ban, ShieldAlert } from 'lucide-react';
 import InteractiveCommand from '../../components/terminal/InteractiveCommand';
 import InteractiveDebugCycleItem from './InteractiveDebugCycleItem';
-import { checkRequiresElevation } from '../../utils/platform';
 
 export const InteractiveTurnCard = ({
   turn,
@@ -27,8 +26,8 @@ export const InteractiveTurnCard = ({
   const isPrimaryLocked = !isLast || ['running','success','error','cancelled'].includes(turn.runState);
   const isPrimaryRetry = turn.runState === 'failed';
 
-  // Check if this specific turn requires admin elevation in a standard session
-  const needsElevation = Boolean(turn.requiresElevation || checkRequiresElevation(turn.command));
+  // Smart AI elevation check: Relies purely on the AI's intelligent evaluation
+  const needsElevation = Boolean(turn.requiresElevation);
   const isSessionElevated = Boolean(ctx?.isElevated);
   const showElevationBtn = !isSessionElevated && needsElevation && turn.runState === 'idle';
 

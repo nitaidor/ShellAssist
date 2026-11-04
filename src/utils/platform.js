@@ -31,7 +31,7 @@ export const getExtension = (shell = '') => {
   return '.sh'; 
 };
 
-// NEW: Maps uploaded files to specific Shells and restricts valid OS options
+// Maps uploaded files to specific Shells and restricts valid OS options
 export const getContextFromFileExtension = (filename) => {
   const ext = filename.slice((Math.max(0, filename.lastIndexOf(".")) || Infinity) + 1).toLowerCase();
   switch(ext) {
@@ -48,63 +48,6 @@ export const getContextFromFileExtension = (filename) => {
 };
 
 export const generateId = () => Math.random().toString(36).substring(2, 9);
-
-export const checkRequiresElevation = (cmd = '') => {
-  const lower = (cmd || '').toLowerCase();
-  return (
-    lower.includes('sudo ') ||
-    lower.includes('runas') ||
-    lower.includes('-verbrunas') ||
-    lower.includes('-verb runas') ||
-    lower.includes('start-vm') ||
-    lower.includes('stop-vm') ||
-    lower.includes('new-vm') ||
-    lower.includes('remove-vm') ||
-    lower.includes('set-vm') ||
-    lower.includes('get-vm') ||
-    lower.includes('new-smbshare') ||
-    lower.includes('remove-smbshare') ||
-    lower.includes('netsh ') ||
-    lower.includes('diskpart') ||
-    lower.includes('bcdedit') ||
-    lower.includes('sfc ') ||
-    lower.includes('dism ') ||
-    lower.includes('chkdsk') ||
-    lower.includes('format-volume') ||
-    lower.includes('clear-disk') ||
-    lower.includes('initialize-disk') ||
-    lower.includes('new-partition') ||
-    lower.includes('set-executionpolicy') ||
-    lower.includes('enable-windowsoptionalfeature') ||
-    lower.includes('disable-windowsoptionalfeature') ||
-    lower.includes('new-netfirewallrule') ||
-    lower.includes('remove-netfirewallrule') ||
-    lower.includes('set-netfirewallprofile') ||
-    lower.includes('new-localuser') ||
-    lower.includes('remove-localuser') ||
-    lower.includes('add-localgroupmember') ||
-    lower.includes('net user ') ||
-    lower.includes('net localgroup ') ||
-    lower.includes('systemctl ') ||
-    lower.includes('iptables') ||
-    lower.includes('ufw ') ||
-    lower.includes('apt-get install') ||
-    lower.includes('apt install') ||
-    lower.includes('yum install') ||
-    lower.includes('dnf install') ||
-    lower.includes('pacman -s') ||
-    lower.includes('chmod 777 /') ||
-    lower.includes('chown ') ||
-    lower.includes('reg add') ||
-    lower.includes('reg delete') ||
-    lower.includes('sc.exe') ||
-    lower.includes('restart-service') ||
-    lower.includes('stop-service') ||
-    lower.includes('start-service') ||
-    lower.includes('set-service') ||
-    lower.includes('new-service')
-  );
-};
 
 export const formatSessionDate = (dateOrUnix, clockFormat = '12h') => {
   if (!dateOrUnix) return '';

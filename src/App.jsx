@@ -18,7 +18,7 @@ import {
   ClearHistoryModal
 } from './components/modals/ConfirmationModals';
 import { loadPersistedState, savePersistedState } from './utils/storage';
-import { detectHostOS, getInteractiveShellOptions, generateId, checkRequiresElevation } from './utils/platform';
+import { detectHostOS, getInteractiveShellOptions, generateId } from './utils/platform';
 import { executeTerminalCommand, startTerminalSession, stopTerminalSession } from './services/terminal';
 import {
   fetchCommandGeneration,
@@ -346,6 +346,7 @@ export default function App() {
     setSimulatedNextInput('');
   };
 
+  // Turn is ALWAYS generated without premature blocking
   const handleGenerateSimulatedTurn = async (isInitial = false, overridePrompt = null) => {
     const promptText = overridePrompt !== null ? overridePrompt : (isInitial ? simulatedInitialInput : simulatedNextInput);
     if (!promptText.trim() || !activeSimulatedSession || isSimulatedGenerating) return;
@@ -941,7 +942,7 @@ export default function App() {
               hostOs={hostOs}
               isDesktopEnv={isDesktopEnv}
               interactiveShellOptions={interactiveShellOptions}
-              selectedInteractiveShell={selectedInteractiveShell}
+              selectedInteractiveShell={setSelectedInteractiveShell}
               setSelectedInteractiveShell={setSelectedInteractiveShell}
               runInteractiveAsAdmin={runInteractiveAsAdmin}
               setRunInteractiveAsAdmin={setRunInteractiveAsAdmin}
@@ -984,7 +985,7 @@ export default function App() {
               onCancelAutoDebugAnalysis={(tId, cId) => {
                 setActiveInteractiveSession(prev => prev ? {
                   ...prev,
-                  turns: prev.turns.map(t => t.id === tId ? {
+                  turns: prev.turns.map(t => t.id === turnId ? {
                     ...t,
                     debugCycles: t.debugCycles.map(c => c.id === cId ? { ...c, isAnalyzing: false, fixExplanation: 'Automated error diagnosis cancelled by user.', fixCommand: '', fixStatus: 'cancelled' } : c)
                   } : t)

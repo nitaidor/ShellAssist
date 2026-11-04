@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Info, ChevronUp, ChevronDown, ShieldAlert, Lightbulb, Download, Copy, Check, Sparkles, Loader2, Ban } from 'lucide-react';
-import { getExtension, checkRequiresElevation } from '../../utils/platform';
+import { getExtension } from '../../utils/platform';
 import RunActionButton from '../common/RunActionButton';
 import { DeepTokenBreakdownModal } from '../modals/ConfirmationModals';
 import { fetchDeepTokenBreakdown } from '../../services/gemini';
@@ -156,7 +156,9 @@ export const InteractiveCommand = ({
   const isTruncated = !hasCompletedDeepAnalysis && hasUnannotatedTokens;
 
   const fullCommand = command || formattedTokens.map(t => t.text).join('');
-  const needsAdmin = Boolean(requiresElevation || checkRequiresElevation(fullCommand));
+
+  // Smart AI elevation check: Evaluated purely on the AI's requiresElevation assessment
+  const needsAdmin = Boolean(requiresElevation);
 
   const finalRiskExplanation = (() => {
     const baseText = (riskExplanation || '').trim();
@@ -256,7 +258,7 @@ export const InteractiveCommand = ({
 
   return (
     <div className="flex flex-col bg-[#161b22] w-full panel-bg">
-      {/* Code Box: Fits exact height for < 12 lines, scrolls smoothly at 12 lines (~19.5rem) */}
+      {/* Code Box */}
       <div className="bg-[#0d1117] p-4 font-mono text-sm leading-relaxed whitespace-pre-wrap relative group cursor-crosshair break-words overflow-x-auto max-h-[19.5rem] overflow-y-auto border-b border-[#30363d]">
         {formattedTokens.map((token, idx) => {
           if (token.isWhitespace) {
@@ -310,7 +312,6 @@ export const InteractiveCommand = ({
         </div>
       )}
       {(!collapsibleInspector || inspectorExpanded) && (
-        /* Anchored stable height (min-h-[8.5rem]), smoothly expands downward only if an explanation is exceptionally long */
         <div className="min-h-[8.5rem] h-auto bg-[#161b22] p-4 border-b border-[#30363d] panel-bg flex flex-col justify-center animate-in fade-in duration-150">
           {isDeepAnalyzing ? (
             <div className="py-4 flex flex-col items-center justify-center text-gray-400 gap-3">
