@@ -128,7 +128,7 @@ export const GeneralDebuggerTab = ({
 
       const initialThread = [
         { role: "user", text: combinedInput },
-        { role: "model", text: result.analysis }
+        { role: "model", text: result.analysis, requiresElevation: Boolean(result.requiresElevation) }
       ];
       setActiveStandaloneSummary(result.summary);
       setActiveStandaloneCtx(finalCtx);
@@ -175,7 +175,7 @@ export const GeneralDebuggerTab = ({
       const updatedThread = [
         ...activeStandaloneThread,
         { role: "user", text: currentInput },
-        { role: "model", text: result.analysis }
+        { role: "model", text: result.analysis, requiresElevation: Boolean(result.requiresElevation) }
       ];
       setActiveStandaloneCtx(updatedCtx);
       setActiveStandaloneThread(updatedThread);

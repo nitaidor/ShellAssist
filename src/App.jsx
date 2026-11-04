@@ -346,7 +346,6 @@ export default function App() {
     setSimulatedNextInput('');
   };
 
-  // Turn is ALWAYS generated without premature blocking
   const handleGenerateSimulatedTurn = async (isInitial = false, overridePrompt = null) => {
     const promptText = overridePrompt !== null ? overridePrompt : (isInitial ? simulatedInitialInput : simulatedNextInput);
     if (!promptText.trim() || !activeSimulatedSession || isSimulatedGenerating) return;
@@ -425,7 +424,7 @@ export default function App() {
       } : prev);
     } else {
       const cycleId = generateId();
-      const newCycle = { id: cycleId, attemptType: 'error', errorMessage: res.message, terminalSnapshot: updatedTranscript, isAnalyzing: true, fixExplanation: '', fixCommand: '', fixStatus: 'idle', fixResultMessage: '', fixResultOutput: '' };
+      const newCycle = { id: cycleId, attemptType: 'error', errorMessage: res.message, terminalSnapshot: updatedTranscript, isAnalyzing: true, fixExplanation: '', fixCommand: '', fixStatus: 'idle', fixResultMessage: '', fixResultOutput: '', requiresElevation: false };
       setActiveSimulatedSession(prev => prev ? {
         ...prev,
         fullTranscript: updatedTranscript,
@@ -437,19 +436,20 @@ export default function App() {
         setApiStatus('valid');
         setActiveSimulatedSession(prev => prev ? {
           ...prev,
-          turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, isAnalyzing: false, fixExplanation: debugRes.explanation, fixCommand: debugRes.fixCommand } : c) } : t)
+          turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, isAnalyzing: false, fixExplanation: debugRes.explanation, fixCommand: debugRes.fixCommand, requiresElevation: Boolean(debugRes.requiresElevation) } : c) } : t)
         } : prev);
       } catch {
         setActiveSimulatedSession(prev => prev ? {
           ...prev,
-          turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, isAnalyzing: false, fixExplanation: 'Failed to simulate fix.', fixCommand: '' } : c) } : t)
+          turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, isAnalyzing: false, fixExplanation: 'Failed to simulate fix.', fixCommand: '', requiresElevation: false } : c) } : t)
         } : prev);
       }
     }
   };
 
-  const handleRunSimulatedFixCommand = async (turnId, cycleId, fixCmd) => {
-    if (!activeSimulatedSession) return;
+  const handleRunSimulatedFixCommand = async (turnId, cycleId, fixCmd, sessionOverride = null) => {
+    const currentSession = sessionOverride || activeSimulatedSession;
+    if (!currentSession) return;
     setActiveSimulatedSession(prev => prev ? {
       ...prev,
       turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, fixStatus: 'running' } : c) } : t)
@@ -457,14 +457,14 @@ export default function App() {
 
     const res = await executeTerminalCommand(
       fixCmd,
-      activeSimulatedSession.ctx,
+      currentSession.ctx,
       settings,
-      activeSimulatedSession.fullTranscript,
-      Boolean(activeSimulatedSession.ctx?.isElevated),
+      currentSession.fullTranscript,
+      Boolean(currentSession.ctx?.isElevated),
       true,
       false
     );
-    const updatedTranscript = (activeSimulatedSession.fullTranscript + `\n> ${fixCmd}\n${res.output || res.message}\n`).trim();
+    const updatedTranscript = (currentSession.fullTranscript + `\n> ${fixCmd}\n${res.output || res.message}\n`).trim();
 
     if (res.status === 'success') {
       setApiStatus('valid');
@@ -481,7 +481,7 @@ export default function App() {
       } : prev);
     } else {
       const nextCycleId = generateId();
-      const nextCycle = { id: nextCycleId, attemptType: 'error', errorMessage: res.message, terminalSnapshot: updatedTranscript, isAnalyzing: true, fixExplanation: '', fixCommand: '', fixStatus: 'idle', fixResultMessage: '', fixResultOutput: '' };
+      const nextCycle = { id: nextCycleId, attemptType: 'error', errorMessage: res.message, terminalSnapshot: updatedTranscript, isAnalyzing: true, fixExplanation: '', fixCommand: '', fixStatus: 'idle', fixResultMessage: '', fixResultOutput: '', requiresElevation: false };
       setActiveSimulatedSession(prev => prev ? {
         ...prev,
         fullTranscript: updatedTranscript,
@@ -489,23 +489,24 @@ export default function App() {
       } : prev);
 
       try {
-        const debugRes = await fetchInteractiveAutoDebug(activeSimulatedSession.turns.find(t => t.id === turnId).prompt, fixCmd, updatedTranscript, activeSimulatedSession.ctx, settings);
+        const debugRes = await fetchInteractiveAutoDebug(currentSession.turns.find(t => t.id === turnId).prompt, fixCmd, updatedTranscript, currentSession.ctx, settings);
         setApiStatus('valid');
         setActiveSimulatedSession(prev => prev ? {
           ...prev,
-          turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === nextCycleId ? { ...c, isAnalyzing: false, fixExplanation: debugRes.explanation, fixCommand: debugRes.fixCommand } : c) } : t)
+          turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === nextCycleId ? { ...c, isAnalyzing: false, fixExplanation: debugRes.explanation, fixCommand: debugRes.fixCommand, requiresElevation: Boolean(debugRes.requiresElevation) } : c) } : t)
         } : prev);
       } catch {
         setActiveSimulatedSession(prev => prev ? {
           ...prev,
-          turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === nextCycleId ? { ...c, isAnalyzing: false, fixExplanation: 'Failed to simulate subsequent fix.', fixCommand: '' } : c) } : t)
+          turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === nextCycleId ? { ...c, isAnalyzing: false, fixExplanation: 'Failed to simulate subsequent fix.', fixCommand: '', requiresElevation: false } : c) } : t)
         } : prev);
       }
     }
   };
 
+  // Choice 3: End & Run as Admin in Simulated Terminal
   const handleSimulatedEndAndRunAsAdmin = () => {
-    const targetTurn = simElevationModalTurn;
+    const target = simElevationModalTurn;
     setSimElevationModalTurn(null);
     setRunSimulatedAsAdmin(true);
     if (activeSimulatedSession) archiveAndCloseSimulatedSession(activeSimulatedSession);
@@ -526,14 +527,30 @@ export default function App() {
       isSimulated: true
     };
     const shellLabel = `${selectedSimShell} (Elevated)`;
-    const elevatedTurn = targetTurn ? { ...targetTurn, ctx: sessionCtx, runState: 'idle' } : null;
+
+    const isFixTarget = target?.type === 'fix';
+    const targetTurn = isFixTarget ? target.turn : (target?.turn || target);
+    const targetCycle = isFixTarget ? target.cycle : null;
+
+    let elevatedTurns = [];
+    if (isFixTarget && targetTurn && targetCycle) {
+      elevatedTurns = [{
+        ...targetTurn,
+        ctx: sessionCtx,
+        debugCycles: targetTurn.debugCycles.map(c => 
+          c.id === targetCycle.id ? { ...c, fixStatus: 'idle' } : c
+        )
+      }];
+    } else if (targetTurn) {
+      elevatedTurns = [{ ...targetTurn, ctx: sessionCtx, runState: 'idle' }];
+    }
 
     const newSession = {
       id: generateId(),
       dateTime: now.toLocaleString(),
       unixTime: Date.now(),
       ctx: sessionCtx,
-      turns: elevatedTurn ? [elevatedTurn] : [],
+      turns: elevatedTurns,
       fullTranscript: `[${timeStr}] Connected to ${shellLabel} on ${selectedSimOs} (Simulated).\n`
     };
 
@@ -542,8 +559,10 @@ export default function App() {
     setSimulatedInitialInput('');
     setSimulatedNextInput('');
 
-    if (elevatedTurn) {
-      executeSimulatedPrimaryCommand(elevatedTurn.id, newSession);
+    if (isFixTarget && targetTurn && targetCycle) {
+      handleRunSimulatedFixCommand(targetTurn.id, targetCycle.id, targetCycle.fixCommand, newSession);
+    } else if (targetTurn) {
+      executeSimulatedPrimaryCommand(targetTurn.id, newSession);
     }
   };
 
@@ -577,7 +596,6 @@ export default function App() {
       isElevated
     };
 
-    // Immediately trigger React state and force an instantaneous paint frame before starting IPC
     setIsInteractiveStarting(true);
     await new Promise(resolve => setTimeout(resolve, 20));
 
@@ -686,7 +704,7 @@ export default function App() {
       } : prev);
     } else {
       const cycleId = generateId();
-      const newCycle = { id: cycleId, attemptType: 'error', errorMessage: res.message, terminalSnapshot: updatedTranscript, isAnalyzing: true, fixExplanation: '', fixCommand: '', fixStatus: 'idle', fixResultMessage: '', fixResultOutput: '' };
+      const newCycle = { id: cycleId, attemptType: 'error', errorMessage: res.message, terminalSnapshot: updatedTranscript, isAnalyzing: true, fixExplanation: '', fixCommand: '', fixStatus: 'idle', fixResultMessage: '', fixResultOutput: '', requiresElevation: false };
       setActiveInteractiveSession(prev => prev ? {
         ...prev,
         fullTranscript: updatedTranscript,
@@ -698,19 +716,20 @@ export default function App() {
         setApiStatus('valid');
         setActiveInteractiveSession(prev => prev ? {
           ...prev,
-          turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, isAnalyzing: false, fixExplanation: debugRes.explanation, fixCommand: debugRes.fixCommand } : c) } : t)
+          turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, isAnalyzing: false, fixExplanation: debugRes.explanation, fixCommand: debugRes.fixCommand, requiresElevation: Boolean(debugRes.requiresElevation) } : c) } : t)
         } : prev);
       } catch {
         setActiveInteractiveSession(prev => prev ? {
           ...prev,
-          turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, isAnalyzing: false, fixExplanation: 'Failed to generate automated fix.', fixCommand: '' } : c) } : t)
+          turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, isAnalyzing: false, fixExplanation: 'Failed to generate automated fix.', fixCommand: '', requiresElevation: false } : c) } : t)
         } : prev);
       }
     }
   };
 
-  const handleRunInteractiveFixCommand = async (turnId, cycleId, fixCmd) => {
-    if (!activeInteractiveSession) return;
+  const handleRunInteractiveFixCommand = async (turnId, cycleId, fixCmd, sessionOverride = null) => {
+    const currentSession = sessionOverride || activeInteractiveSession;
+    if (!currentSession) return;
     setActiveInteractiveSession(prev => prev ? {
       ...prev,
       turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, fixStatus: 'running' } : c) } : t)
@@ -718,14 +737,14 @@ export default function App() {
 
     const res = await executeTerminalCommand(
       fixCmd,
-      activeInteractiveSession.ctx,
+      currentSession.ctx,
       settings,
-      activeInteractiveSession.fullTranscript,
-      Boolean(activeInteractiveSession.ctx?.isElevated),
+      currentSession.fullTranscript,
+      Boolean(currentSession.ctx?.isElevated),
       false,
       true
     );
-    const updatedTranscript = (activeInteractiveSession.fullTranscript + `\n> ${fixCmd}\n${res.output || res.message}\n`).trim();
+    const updatedTranscript = (currentSession.fullTranscript + `\n> ${fixCmd}\n${res.output || res.message}\n`).trim();
 
     if (res.status === 'success') {
       setActiveInteractiveSession(prev => prev ? {
@@ -741,7 +760,7 @@ export default function App() {
       } : prev);
     } else {
       const nextCycleId = generateId();
-      const nextCycle = { id: nextCycleId, attemptType: 'error', errorMessage: res.message, terminalSnapshot: updatedTranscript, isAnalyzing: true, fixExplanation: '', fixCommand: '', fixStatus: 'idle', fixResultMessage: '', fixResultOutput: '' };
+      const nextCycle = { id: nextCycleId, attemptType: 'error', errorMessage: res.message, terminalSnapshot: updatedTranscript, isAnalyzing: true, fixExplanation: '', fixCommand: '', fixStatus: 'idle', fixResultMessage: '', fixResultOutput: '', requiresElevation: false };
       setActiveInteractiveSession(prev => prev ? {
         ...prev,
         fullTranscript: updatedTranscript,
@@ -749,16 +768,16 @@ export default function App() {
       } : prev);
 
       try {
-        const debugRes = await fetchInteractiveAutoDebug(activeInteractiveSession.turns.find(t => t.id === turnId).prompt, fixCmd, updatedTranscript, activeInteractiveSession.ctx, settings);
+        const debugRes = await fetchInteractiveAutoDebug(currentSession.turns.find(t => t.id === turnId).prompt, fixCmd, updatedTranscript, currentSession.ctx, settings);
         setApiStatus('valid');
         setActiveInteractiveSession(prev => prev ? {
           ...prev,
-          turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === nextCycleId ? { ...c, isAnalyzing: false, fixExplanation: debugRes.explanation, fixCommand: debugRes.fixCommand } : c) } : t)
+          turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === nextCycleId ? { ...c, isAnalyzing: false, fixExplanation: debugRes.explanation, fixCommand: debugRes.fixCommand, requiresElevation: Boolean(debugRes.requiresElevation) } : c) } : t)
         } : prev);
       } catch {
         setActiveInteractiveSession(prev => prev ? {
           ...prev,
-          turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === nextCycleId ? { ...c, isAnalyzing: false, fixExplanation: 'Failed to analyze subsequent error.', fixCommand: '' } : c) } : t)
+          turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === nextCycleId ? { ...c, isAnalyzing: false, fixExplanation: 'Failed to analyze subsequent error.', fixCommand: '', requiresElevation: false } : c) } : t)
         } : prev);
       }
     }
@@ -767,7 +786,7 @@ export default function App() {
   // Choice 3: End & Run as Admin in Interactive Real Terminal
   const handleInteractiveEndAndRunAsAdmin = async () => {
     if (isInteractiveStarting) return;
-    const targetTurn = elevationModalTurn;
+    const target = elevationModalTurn;
     setElevationModalTurn(null);
     setRunInteractiveAsAdmin(true);
 
@@ -802,14 +821,30 @@ export default function App() {
       const now = new Date();
       const timeStr = now.toLocaleTimeString(undefined, { hour12: settings.clockFormat === '12h' });
       const shellLabel = `${selectedInteractiveShell} (Elevated)`;
-      const elevatedTurn = targetTurn ? { ...targetTurn, ctx: sessionCtx, runState: 'idle' } : null;
+
+      const isFixTarget = target?.type === 'fix';
+      const targetTurn = isFixTarget ? target.turn : (target?.turn || target);
+      const targetCycle = isFixTarget ? target.cycle : null;
+
+      let elevatedTurns = [];
+      if (isFixTarget && targetTurn && targetCycle) {
+        elevatedTurns = [{
+          ...targetTurn,
+          ctx: sessionCtx,
+          debugCycles: targetTurn.debugCycles.map(c => 
+            c.id === targetCycle.id ? { ...c, fixStatus: 'idle' } : c
+          )
+        }];
+      } else if (targetTurn) {
+        elevatedTurns = [{ ...targetTurn, ctx: sessionCtx, runState: 'idle' }];
+      }
 
       const newSession = {
         id: generateId(),
         dateTime: now.toLocaleString(),
         unixTime: Date.now(),
         ctx: sessionCtx,
-        turns: elevatedTurn ? [elevatedTurn] : [],
+        turns: elevatedTurns,
         fullTranscript: `[${timeStr}] Connected to ${shellLabel} on ${hostOs}.\n`
       };
 
@@ -818,8 +853,10 @@ export default function App() {
       setInteractiveInitialInput('');
       setInteractiveNextInput('');
 
-      if (elevatedTurn) {
-        executeInteractivePrimaryCommand(elevatedTurn.id, newSession);
+      if (isFixTarget && targetTurn && targetCycle) {
+        handleRunInteractiveFixCommand(targetTurn.id, targetCycle.id, targetCycle.fixCommand, newSession);
+      } else if (targetTurn) {
+        executeInteractivePrimaryCommand(targetTurn.id, newSession);
       }
     } finally {
       setIsInteractiveStarting(false);
@@ -934,7 +971,7 @@ export default function App() {
               }}
               onClearHistory={(t) => setHistoryClearModal(t)}
               filterHistory={filterHistory}
-              onOpenElevationModal={(turn) => setSimElevationModalTurn(turn)}
+              onOpenElevationModal={(target) => setSimElevationModalTurn(target)}
             />
           </div>
 
@@ -997,7 +1034,7 @@ export default function App() {
               }}
               onClearHistory={(t) => setHistoryClearModal(t)}
               filterHistory={filterHistory}
-              onOpenElevationModal={(turn) => setElevationModalTurn(turn)}
+              onOpenElevationModal={(target) => setElevationModalTurn(target)}
             />
           </div>
 
@@ -1060,9 +1097,15 @@ export default function App() {
           isSimulated={true}
           onClose={() => setSimElevationModalTurn(null)}
           onConfirmRunCurrent={() => {
-            const targetTurn = simElevationModalTurn;
+            const target = simElevationModalTurn;
             setSimElevationModalTurn(null);
-            if (targetTurn) executeSimulatedPrimaryCommand(targetTurn.id);
+            if (!target) return;
+            if (target.type === 'fix') {
+              handleRunSimulatedFixCommand(target.turn.id, target.cycle.id, target.cycle.fixCommand);
+            } else {
+              const targetTurn = target.turn || target;
+              executeSimulatedPrimaryCommand(targetTurn.id);
+            }
           }}
           onConfirmRestartAndRunAsAdmin={handleSimulatedEndAndRunAsAdmin}
         />
@@ -1103,9 +1146,15 @@ export default function App() {
           isSimulated={false}
           onClose={() => setElevationModalTurn(null)}
           onConfirmRunCurrent={() => {
-            const targetTurn = elevationModalTurn;
+            const target = elevationModalTurn;
             setElevationModalTurn(null);
-            if (targetTurn) executeInteractivePrimaryCommand(targetTurn.id);
+            if (!target) return;
+            if (target.type === 'fix') {
+              handleRunInteractiveFixCommand(target.turn.id, target.cycle.id, target.cycle.fixCommand);
+            } else {
+              const targetTurn = target.turn || target;
+              executeInteractivePrimaryCommand(targetTurn.id);
+            }
           }}
           onConfirmRestartAndRunAsAdmin={handleInteractiveEndAndRunAsAdmin}
         />

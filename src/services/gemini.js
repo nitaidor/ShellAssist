@@ -317,7 +317,9 @@ export const fetchInteractiveAutoDebug = async (prompt, failedCommand, fullTermi
   const cleanShell = (ctx?.shell || 'PowerShell').replace(/\s*\(Elevated\)/i, '').trim();
   const cleanOs = (ctx?.os || 'Windows').replace(/\s*\(Simulated\)/i, '').trim();
 
-  const systemPrompt = `You are an automated ${cleanShell} debugger on ${cleanOs}. Always append non-interactive confirmation flags where applicable (e.g., -Confirm:$false, -Force, -y, --no-input) so the fix command never hangs waiting for [Y/N] user input. Evaluate whether the fixCommand requires Administrator, root, or elevated privileges on ${cleanOs} and set "requiresElevation" accordingly. Return STRICTLY a JSON object: { "explanation": "...", "fixCommand": "...", "requiresElevation": false }`;
+  const elevationRule = `Evaluate whether the fixCommand requires Administrator, root, or elevated privileges on ${cleanOs} and set "requiresElevation" to true ONLY if it actually requires elevation (or false if it can run under standard user permissions).`;
+
+  const systemPrompt = `You are an automated ${cleanShell} debugger on ${cleanOs}. Always append non-interactive confirmation flags where applicable (e.g., -Confirm:$false, -Force, -y, --no-input) so the fix command never hangs waiting for [Y/N] user input. ${elevationRule} Return STRICTLY a JSON object: { "explanation": "...", "fixCommand": "...", "requiresElevation": false }`;
   const userMessages = [{ role: "user", text: `User Objective: "${prompt}"\nFailed Command: "${failedCommand}"\nOutput:\n${fullTerminalTranscript}` }];
 
   const raw = await callAiProvider(systemPrompt, userMessages, settings);
@@ -355,7 +357,9 @@ export const fetchCommandDebug = async (prompt, command, debugThread = [], curre
   const cleanShell = (ctx?.shell || 'shell').replace(/\s*\(Elevated\)/i, '').trim();
   const cleanOs = (ctx?.os || 'Windows').replace(/\s*\(Simulated\)/i, '').trim();
 
-  const systemPrompt = `You are an expert ${cleanShell} debugger on ${cleanOs}. The user originally requested this objective: "${prompt}". The generated command/script they are trying to debug is: "${command}". Always include non-interactive flags where applicable (e.g. -Confirm:$false, -Force, -y) and wrap any suggested code fixes, commands, or scripts inside standard markdown code blocks (\`\`\`). Return STRICTLY a JSON object matching: { "analysis": "Detailed explanation with markdown code blocks" }`;
+  const elevationRule = `Evaluate whether any suggested fix command or code block requires Administrator, root, or elevated privileges on ${cleanOs}. If a specific code block requires elevation, tag its markdown fence with ":admin" (for example \`\`\`powershell:admin or \`\`\`bash:admin) and set "requiresElevation" to true (or false if all fixes run under standard user permissions).`;
+
+  const systemPrompt = `You are an expert ${cleanShell} debugger on ${cleanOs}. The user originally requested this objective: "${prompt}". The generated command/script they are trying to debug is: "${command}". Always include non-interactive flags where applicable (e.g. -Confirm:$false, -Force, -y) and wrap any suggested code fixes, commands, or scripts inside standard markdown code blocks (\`\`\`). ${elevationRule} Return STRICTLY a JSON object matching: { "analysis": "Detailed explanation with markdown code blocks", "requiresElevation": false }`;
   const userMessages = [
     ...debugThread.map(msg => ({ role: msg.role === 'model' ? 'assistant' : msg.role, text: msg.text })),
     { role: "user", text: currentInput }
@@ -364,9 +368,12 @@ export const fetchCommandDebug = async (prompt, command, debugThread = [], curre
   const raw = await callAiProvider(systemPrompt, userMessages, settings);
   try {
     const parsed = cleanJsonResponse(raw);
-    return parsed.analysis || parsed.explanation || raw;
+    return {
+      analysis: parsed.analysis || parsed.explanation || raw,
+      requiresElevation: Boolean(parsed.requiresElevation)
+    };
   } catch {
-    return raw;
+    return { analysis: raw, requiresElevation: false };
   }
 };
 
@@ -375,10 +382,12 @@ export const fetchStandaloneDebug = async (messages = [], ctx, settingsOrKey = '
   const cleanShell = (ctx?.shell || 'shell').replace(/\s*\(Elevated\)/i, '').trim();
   const cleanOs = (ctx?.os || 'Windows').replace(/\s*\(Simulated\)/i, '').trim();
 
+  const elevationRule = `Evaluate whether any suggested fix command or code block requires Administrator, root, or elevated privileges on ${cleanOs}. If a specific code block requires elevation, tag its markdown fence with ":admin" (for example \`\`\`powershell:admin or \`\`\`bash:admin) and set "requiresElevation" to true (or false if all fixes run under standard user permissions).`;
+
   const systemPrompt = `You are an expert ${cleanShell} debugger on ${cleanOs}.
 Analyze the user's issue, error log, and code to automatically determine whether the problem involves a multi-line "Script" (e.g., script files, functions, multi-line blocks, automation scripts) or a single-line "Command".
 Always provide a suggested fix or corrected code with non-interactive flags where applicable (e.g. -Confirm:$false, -Force, -y) and wrap any suggested code fixes, commands, or scripts inside standard markdown code blocks (\`\`\`).
-Evaluate if the suggested fix requires Administrator or root privileges and return "requiresElevation" accordingly.
+${elevationRule}
 Return STRICTLY a JSON object matching this schema:
 {
   "summary": "A brief summary",

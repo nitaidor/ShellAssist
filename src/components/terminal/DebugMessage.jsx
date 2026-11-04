@@ -25,13 +25,41 @@ export const DebugMessage = ({ msg, isLast, ctx, settings, onErrorOutput }) => {
     );
   }
 
-  const parts = msg.text.split(/(\`\`\`[\w]*\n[\s\S]*?\n\`\`\`|\`\`\`[\s\S]*?\`\`\`)/g).filter(p => p.trim());
+  // Regex allows language specifiers with modifiers like ```powershell:admin
+  const parts = msg.text.split(/(\`\`\`[^\n`]*\n[\s\S]*?\n\`\`\`|\`\`\`[\s\S]*?\`\`\`)/g).filter(p => p.trim());
+  
+  const codeBlocks = parts.filter(p => p.startsWith('```'));
+  const anyTaggedAdmin = codeBlocks.some(p => {
+    const m = p.match(/^```([^\n`]*)\n?/);
+    return m && (m[1].toLowerCase().includes(':admin') || m[1].toLowerCase().includes('admin'));
+  });
+
   return (
     <>
       {parts.map((part, i) => {
         if (part.startsWith('```')) {
-          const code = part.replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '').trim();
-          return <DebugCodeBlock key={i} code={code} ctx={ctx} settings={settings} onErrorOutput={onErrorOutput} isLast={isLast} />;
+          const fenceMatch = part.match(/^```([^\n`]*)\n?/);
+          const fenceHeader = fenceMatch ? fenceMatch[1].toLowerCase() : '';
+          const isThisBlockTagged = fenceHeader.includes(':admin') || fenceHeader.includes('admin');
+          
+          // If the AI specifically tagged blocks with :admin, respect individual tags.
+          // Otherwise, fall back to the message's overall requiresElevation.
+          const requiresElevation = anyTaggedAdmin 
+            ? isThisBlockTagged 
+            : Boolean(msg.requiresElevation);
+
+          const code = part.replace(/^```[^\n`]*\n?/, '').replace(/\n?```$/, '').trim();
+          return (
+            <DebugCodeBlock
+              key={i}
+              code={code}
+              ctx={ctx}
+              settings={settings}
+              onErrorOutput={onErrorOutput}
+              isLast={isLast}
+              requiresElevation={requiresElevation}
+            />
+          );
         }
         return <SuggestedFixBlock key={i} text={part.trim()} className={i > 0 ? "mt-3" : ""} isLast={isLast} />;
       })}

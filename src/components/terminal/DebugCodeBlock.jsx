@@ -3,7 +3,7 @@ import { Code, Check, Copy, Download, ChevronUp, ChevronDown } from 'lucide-reac
 import { getExtension } from '../../utils/platform';
 import RunActionButton from '../common/RunActionButton';
 
-export const DebugCodeBlock = ({ code, ctx, settings, onErrorOutput, isLast = true }) => {
+export const DebugCodeBlock = ({ code, ctx, settings, onErrorOutput, isLast = true, requiresElevation = false }) => {
   const [copied, setCopied] = useState(false);
   const [codeExpanded, setCodeExpanded] = useState(isLast);
   useEffect(() => { setCodeExpanded(isLast); }, [isLast]);
@@ -64,7 +64,14 @@ export const DebugCodeBlock = ({ code, ctx, settings, onErrorOutput, isLast = tr
             </button>
           )}
           {(!ctx || ctx?.type === 'Command') && (
-            <RunActionButton command={code} ctx={ctx} settings={settings} onErrorOutput={onErrorOutput} size="sm" />
+            <RunActionButton
+              command={code}
+              ctx={ctx}
+              settings={settings}
+              onErrorOutput={onErrorOutput}
+              size="sm"
+              requiresElevation={Boolean(requiresElevation)}
+            />
           )}
           <button
             type="button"

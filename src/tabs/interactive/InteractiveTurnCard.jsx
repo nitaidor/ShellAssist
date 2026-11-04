@@ -26,7 +26,7 @@ export const InteractiveTurnCard = ({
   const isPrimaryLocked = !isLast || ['running','success','error','cancelled'].includes(turn.runState);
   const isPrimaryRetry = turn.runState === 'failed';
 
-  // Smart AI elevation check: Relies purely on the AI's intelligent evaluation
+  // Smart AI elevation check for primary command
   const needsElevation = Boolean(turn.requiresElevation);
   const isSessionElevated = Boolean(ctx?.isElevated);
   const showElevationBtn = !isSessionElevated && needsElevation && turn.runState === 'idle';
@@ -151,6 +151,7 @@ export const InteractiveTurnCard = ({
                   onRunFix={(cycleId, fixCmd) => onRunFixCommand(turn.id, cycleId, fixCmd)}
                   onCancelFix={(cycleId) => onCancelDebugCycle(turn.id, cycleId)}
                   onCancelAnalysis={(cycleId) => onCancelAutoDebugAnalysis && onCancelAutoDebugAnalysis(turn.id, cycleId)}
+                  onOpenElevationModal={(cycleTarget) => onOpenElevationModal && onOpenElevationModal({ type: 'fix', turn, cycle: cycleTarget })}
                 />
               ))}
             </div>

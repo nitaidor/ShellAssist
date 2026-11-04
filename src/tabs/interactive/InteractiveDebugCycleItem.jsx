@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, Loader2, TerminalSquare, ChevronUp, ChevronDown, Bug, Code, Check, Copy, Terminal, Ban, CheckCircle2, WifiOff } from 'lucide-react';
+import { AlertCircle, Loader2, TerminalSquare, ChevronUp, ChevronDown, Bug, Code, Check, Copy, Terminal, Ban, CheckCircle2, WifiOff, ShieldAlert } from 'lucide-react';
 
 export const InteractiveDebugCycleItem = ({
   cycle,
@@ -9,7 +9,8 @@ export const InteractiveDebugCycleItem = ({
   onCancelFix,
   onCancelAnalysis,
   isLatestCycle,
-  isLastTurn = true
+  isLastTurn = true,
+  onOpenElevationModal
 }) => {
   const [termOutputExpanded, setTermOutputExpanded] = useState(false);
   const [fixExpanded, setFixExpanded] = useState(false);
@@ -44,6 +45,11 @@ export const InteractiveDebugCycleItem = ({
   const isFixRunLocked = isReadOnly || !isLatestCycle || !isLastTurn || ['running','success','error','cancelled'].includes(cycle.fixStatus);
   const isFixRetry = cycle.fixStatus === 'failed';
   const isCancelDisabled = isReadOnly || !isLatestCycle || !isLastTurn || ['running','cancelled','success','error'].includes(cycle.fixStatus);
+
+  // Elevation handling for fix commands:
+  const isSessionElevated = Boolean(ctx?.isElevated);
+  const needsElevation = Boolean(cycle.requiresElevation);
+  const showElevationBtn = !isSessionElevated && needsElevation && (cycle.fixStatus === 'idle' || !cycle.fixStatus);
 
   return (
     <div className="mt-3 space-y-3 border-l-2 border-[#30363d] pl-4">
@@ -117,17 +123,28 @@ export const InteractiveDebugCycleItem = ({
                   </button>
                   {!isReadOnly && (
                     <>
-                      <button
-                        onClick={() => !isFixRunLocked && onRunFix(cycle.id, cycle.fixCommand)}
-                        disabled={isFixRunLocked}
-                        className={`${!isFixRunLocked ? 'bg-blue-600 hover:bg-blue-700 text-white border-transparent' : 'bg-[#21262d] opacity-50 cursor-not-allowed border-[#30363d] text-gray-400'} border px-3 py-1 rounded-md font-medium flex items-center gap-1.5 shadow-sm transition-all text-xs`}
-                      >
-                        {cycle.fixStatus === 'running' ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin theme-spinner" />
-                        ) : (
-                          <><Terminal className="w-3.5 h-3.5" /> {isFixRetry ? 'Retry' : 'Run'}</>
-                        )}
-                      </button>
+                      {showElevationBtn ? (
+                        <button
+                          type="button"
+                          onClick={() => !isFixRunLocked && onOpenElevationModal && onOpenElevationModal(cycle)}
+                          disabled={isFixRunLocked}
+                          className={`${!isFixRunLocked ? 'btn-elevation-action border' : 'bg-[#21262d] opacity-50 cursor-not-allowed border-[#30363d] text-gray-400 border'} px-3 py-1 rounded-md font-medium flex items-center gap-1.5 shadow-sm transition-all text-xs`}
+                        >
+                          <ShieldAlert className="w-3.5 h-3.5 shrink-0" /> Requires Elevation
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => !isFixRunLocked && onRunFix(cycle.id, cycle.fixCommand)}
+                          disabled={isFixRunLocked}
+                          className={`${!isFixRunLocked ? 'bg-blue-600 hover:bg-blue-700 text-white border-transparent' : 'bg-[#21262d] opacity-50 cursor-not-allowed border-[#30363d] text-gray-400'} border px-3 py-1 rounded-md font-medium flex items-center gap-1.5 shadow-sm transition-all text-xs`}
+                        >
+                          {cycle.fixStatus === 'running' ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin theme-spinner" />
+                          ) : (
+                            <><Terminal className="w-3.5 h-3.5" /> {isFixRetry ? 'Retry' : 'Run'}</>
+                          )}
+                        </button>
+                      )}
                       <button
                         onClick={() => !isCancelDisabled && onCancelFix(cycle.id)}
                         disabled={isCancelDisabled}

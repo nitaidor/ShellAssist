@@ -42,13 +42,16 @@ export const CommandDebugger = ({
     setErrorInput(''); 
 
     try {
-      const responseText = await fetchCommandDebug(prompt, command, debugThread, currentInput, ctx, settings);
+      const debugRes = await fetchCommandDebug(prompt, command, debugThread, currentInput, ctx, settings);
       if (cancelCommandDebugRef.current !== debugId) return;
+
+      const responseText = typeof debugRes === 'object' && debugRes !== null ? debugRes.analysis : debugRes;
+      const requiresElevation = typeof debugRes === 'object' && debugRes !== null ? Boolean(debugRes.requiresElevation) : false;
 
       const newThread = [
         ...debugThread,
         { role: "user", text: currentInput },
-        { role: "model", text: responseText }
+        { role: "model", text: responseText, requiresElevation }
       ];
       setDebugThread(newThread);
       if (onThreadUpdate) onThreadUpdate(newThread);
