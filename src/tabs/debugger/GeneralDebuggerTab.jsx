@@ -347,6 +347,7 @@ export const GeneralDebuggerTab = ({
                       isLast={globalIdx === activeStandaloneThread.length - 1}
                       ctx={activeStandaloneCtx}
                       settings={settings}
+                      onErrorOutput={(errText) => setFollowUpStandaloneInput(errText)}
                     />
                   ))}
                 </div>

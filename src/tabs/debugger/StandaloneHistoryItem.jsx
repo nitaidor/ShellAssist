@@ -38,7 +38,7 @@ export const StandaloneHistoryItem = ({ session, onUpdateThread, onCollapseTop, 
       onUpdateThread([
         ...session.thread,
         { role: "user", text: currentInput },
-        { role: "model", text: result.analysis }
+        { role: "model", text: result.analysis, requiresElevation: Boolean(result.requiresElevation) }
       ], updatedCtx);
     } catch (err) {
       if (cancelHistoryDebugRef.current !== debugId) return;
@@ -97,6 +97,7 @@ export const StandaloneHistoryItem = ({ session, onUpdateThread, onCollapseTop, 
                     isLast={globalIdx === session.thread.length - 1}
                     ctx={session.ctx}
                     settings={settings}
+                    onErrorOutput={(errText) => setFollowUpInput(errText)}
                   />
                 ))}
               </div>
