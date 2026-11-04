@@ -274,7 +274,6 @@ export const fetchCommandGeneration = async (requestText, previousTurns = [], ct
   const tokenRule = `TOKENIZATION RULE (CRITICAL): The "tokens" array must break "command" down into GRANULAR, ATOMIC tokens in sequential order from start to finish: (1) individual cmdlets/commands (e.g. "Get-VM"), (2) individual flags/parameters (e.g. "-ComputerName"), (3) individual variables (e.g. "$Server"), (4) individual keywords (e.g. "if", "foreach"), (5) individual operators/delimiters (e.g. "=", "|", ";", "{"), (6) string/number literals, and (7) entire comments (e.g. "# This is a comment"). Treat an entire comment block as a single token. NEVER group a multi-token block, loop body, or pipeline into one giant token, and NEVER use "..." placeholders.`;
   const nonInteractiveRule = `IMPORTANT: Because commands execute in a non-interactive background bridge that cannot accept mid-execution stdin keystrokes (like [Y/N] prompts), ALWAYS append non-interactive confirmation flags where applicable (e.g., -Confirm:$false, -Force, -y, --yes, --no-input, /y) so the command never hangs waiting for user confirmation.`;
   
-  // Smart, contextual elevation rule evaluated purely on the complete command and its subcommands/flags
   const elevationRule = `Evaluate the complete command and its exact subcommands/flags on ${cleanOs}, and set "requiresElevation" to true ONLY if executing it actually requires Administrator, root, or elevated privileges (or false if it can run under standard user permissions).`;
 
   const systemPrompt = `You are an expert ${cleanShell} assistant on ${cleanOs}. ${typeRule} ${tokenRule} ${nonInteractiveRule} ${elevationRule} Return STRICTLY a JSON object matching this schema: { "summary": "...", "overallExplanation": "...", "command": "...", "tokens": [ { "text": "...", "explanation": "...", "context": "..." } ], "hasAlternative": false, "alternativeText": "", "riskLevel": "Low", "riskExplanation": "", "requiresElevation": false }`;
@@ -290,7 +289,6 @@ export const fetchCommandGeneration = async (requestText, previousTurns = [], ct
   return cleanJsonResponse(raw);
 };
 
-// Dedicated deep analysis pass to annotate large scripts into granular atomic tokens without truncating
 export const fetchDeepTokenBreakdown = async (command, ctx, settingsOrKey = '') => {
   const settings = typeof settingsOrKey === 'object' ? settingsOrKey : { apiKey: settingsOrKey, apiProvider: 'gemini' };
   const cleanShell = (ctx?.shell || 'PowerShell').replace(/\s*\(Elevated\)/i, '').trim();
@@ -326,7 +324,6 @@ export const fetchInteractiveAutoDebug = async (prompt, failedCommand, fullTermi
   return cleanJsonResponse(raw);
 };
 
-// Universal Terminal Simulation Engine
 export const fetchCommandSimulation = async (command, ctx, sessionTranscript = "", settingsOrKey = '') => {
   const settings = typeof settingsOrKey === 'object' ? settingsOrKey : { apiKey: settingsOrKey, apiProvider: 'gemini' };
   const cleanShell = (ctx?.shell || 'PowerShell').replace(/\s*\(Elevated\)/i, '').trim();
@@ -353,18 +350,25 @@ Return STRICTLY a JSON object matching this schema:
   return cleanJsonResponse(raw);
 };
 
+// FIXED: Now strictly formats and un-escapes clean markdown so raw JSON and literal \n never leak to the UI
 export const fetchCommandDebug = async (prompt, command, debugThread = [], currentInput, ctx, settingsOrKey = '') => {
   const settings = typeof settingsOrKey === 'object' ? settingsOrKey : { apiKey: settingsOrKey, apiProvider: 'gemini' };
   const cleanShell = (ctx?.shell || 'shell').replace(/\s*\(Elevated\)/i, '').trim();
   const cleanOs = (ctx?.os || 'Windows').replace(/\s*\(Simulated\)/i, '').trim();
 
-  const systemPrompt = `You are an expert ${cleanShell} debugger on ${cleanOs}. The user originally requested this objective: "${prompt}". The generated command/script they are trying to debug is: "${command}". Always include non-interactive flags where applicable (e.g. -Confirm:$false, -Force, -y). Wrap any suggested code fixes or commands in standard markdown code blocks (\`\`\`).`;
+  const systemPrompt = `You are an expert ${cleanShell} debugger on ${cleanOs}. The user originally requested this objective: "${prompt}". The generated command/script they are trying to debug is: "${command}". Always include non-interactive flags where applicable (e.g. -Confirm:$false, -Force, -y) and wrap any suggested code fixes, commands, or scripts inside standard markdown code blocks (\`\`\`). Return STRICTLY a JSON object matching: { "analysis": "Detailed explanation with markdown code blocks" }`;
   const userMessages = [
     ...debugThread.map(msg => ({ role: msg.role === 'model' ? 'assistant' : msg.role, text: msg.text })),
     { role: "user", text: currentInput }
   ];
 
-  return await callAiProvider(systemPrompt, userMessages, settings);
+  const raw = await callAiProvider(systemPrompt, userMessages, settings);
+  try {
+    const parsed = cleanJsonResponse(raw);
+    return parsed.analysis || parsed.explanation || raw;
+  } catch {
+    return raw;
+  }
 };
 
 export const fetchStandaloneDebug = async (messages = [], ctx, settingsOrKey = '') => {

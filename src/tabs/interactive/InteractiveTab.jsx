@@ -99,8 +99,10 @@ export const InteractiveTab = ({
                   {hostOs}
                 </span>
                 <CustomSelect
-                  value={isWebView ? 'N/A' : selectedInteractiveShell}
-                  onChange={(val) => setSelectedInteractiveShell(val)}
+                  value={isWebView ? 'N/A' : (selectedInteractiveShell || interactiveShellOptions[0] || 'PowerShell')}
+                  onChange={(val) => {
+                    if (val !== '──────────') setSelectedInteractiveShell(val);
+                  }}
                   options={isWebView ? ['N/A'] : interactiveShellOptions}
                   disabled={!settings.enableExecution || isWebView || isInteractiveStarting}
                 />

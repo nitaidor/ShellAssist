@@ -44,7 +44,6 @@ export const GeneralDebuggerTab = ({
     const file = e.target.files[0];
     if (!file) return;
 
-    // Strict extension validation fallback in case OS file-picker bypass is used
     const ext = file.name.slice((Math.max(0, file.name.lastIndexOf(".")) || Infinity) + 1).toLowerCase();
     const validExts = ['ps1', 'bat', 'cmd', 'sh', 'zsh', 'tf', 'yml', 'yaml', 'txt'];
     if (!validExts.includes(ext)) {
@@ -104,7 +103,8 @@ export const GeneralDebuggerTab = ({
       
     lastRequestedDebugInputRef.current = newStandaloneInput;
     
-    const isScript = !!uploadedFile || newStandaloneInput.includes('\n');
+    // Only a Script if a script file was attached; pasting terminal error output does not make it a script
+    const isScript = Boolean(uploadedFile);
     const currentCtx = { ...debugCtx, type: isScript ? 'Script' : 'Command' };
 
     const genId = ++cancelDebuggerRef.current;
@@ -120,7 +120,6 @@ export const GeneralDebuggerTab = ({
       const result = await fetchStandaloneDebug([{ role: "user", text: combinedInput }], currentCtx, settings);
       if (cancelDebuggerRef.current !== genId) return;
 
-      // Debugging succeeded, now we can remove the file and text from the top window
       setUploadedFile(null);
       setNewStandaloneInput('');
 
@@ -362,7 +361,7 @@ export const GeneralDebuggerTab = ({
                   className="p-1 hover:opacity-80 transition-opacity"
                   title="Dismiss"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             )}
