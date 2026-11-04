@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { TerminalSquare, Settings, HelpCircle, AlertTriangle, XCircle, CheckCircle2, Loader2, Info } from 'lucide-react';
+import { Settings, HelpCircle, AlertTriangle, XCircle, CheckCircle2, Loader2, Info } from 'lucide-react';
 
 export const Header = ({ isDarkMode, settings, apiStatus, showMenu, setShowMenu, onOpenSettings, onOpenHelp, onOpenAbout }) => {
   const menuRef = useRef(null);
@@ -63,7 +63,32 @@ export const Header = ({ isDarkMode, settings, apiStatus, showMenu, setShowMenu,
   return (
     <header className="w-full max-w-4xl mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#30363d] pb-6 relative z-50">
       <div className="flex items-center gap-4">
-        <TerminalSquare className="w-10 h-10 header-logo shrink-0" />
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 256 256"
+          className="w-10 h-10 header-logo shrink-0"
+          fill="none"
+          aria-hidden="true"
+        >
+          <rect
+            x="32"
+            y="32"
+            width="192"
+            height="192"
+            rx="22"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="16"
+          />
+          <path
+            d="M 76 84 L 118 128 L 76 172 M 138 172 L 186 172"
+            stroke="currentColor"
+            strokeWidth="16"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+        </svg>
 
         <div>
           {/* items-end anchors both the title and badge to the bottom baseline */}
