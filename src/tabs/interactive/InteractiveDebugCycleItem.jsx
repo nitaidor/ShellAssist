@@ -48,7 +48,7 @@ export const InteractiveDebugCycleItem = ({
   return (
     <div className="mt-3 space-y-3 border-l-2 border-[#30363d] pl-4">
       {cycle.attemptType === 'error' && (
-        <div className="p-3 rounded-xl border border-red-900/40 bg-red-900/10 text-red-200 text-xs flex items-start gap-2.5 shadow-md theme-error-banner">
+        <div className="p-3 rounded-xl text-xs flex items-start gap-2.5 shadow-md theme-error-banner">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
           <div className="flex-1">
             <span className="font-bold uppercase tracking-wider block text-[10px] opacity-80 error-title">Execution Error</span>
@@ -154,7 +154,7 @@ export const InteractiveDebugCycleItem = ({
               )}
             </div>
           )}
-          {/* Themed "Ran Successfully" Banner (No rogue green in Red theme) */}
+          {/* Themed "Ran Successfully" Banner */}
           {cycle.fixStatus === 'success' && (
             <div className="p-3 rounded-xl text-xs flex items-start gap-2.5 shadow-md theme-success-banner">
               <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 theme-success-icon" />
@@ -167,14 +167,16 @@ export const InteractiveDebugCycleItem = ({
               </div>
             </div>
           )}
+          {/* Themed Connection Failed Banner */}
           {cycle.fixStatus === 'failed' && (
-            <div className="p-3 rounded-xl border border-red-900/50 bg-red-900/20 text-red-200 text-xs flex items-center gap-2.5 shadow-md">
-              <WifiOff className="w-4 h-4 text-red-400 shrink-0" />
+            <div className="p-3 rounded-xl text-xs flex items-center gap-2.5 shadow-md theme-error-banner">
+              <WifiOff className="w-4 h-4 shrink-0" />
               <span>Connection Failed: {cycle.fixResultMessage || `Lost connection to ${ctx?.shell} terminal.`}</span>
             </div>
           )}
+          {/* Themed Execution Cancelled Banner */}
           {cycle.fixStatus === 'cancelled' && (
-            <div className="p-2.5 rounded-lg border border-yellow-500/50 bg-yellow-900/20 text-yellow-400 text-xs font-mono flex items-center gap-2 shadow-md">
+            <div className="p-2.5 rounded-lg text-xs font-mono flex items-center gap-2 shadow-md theme-cancelled-banner">
               <Ban className="w-3.5 h-3.5 shrink-0 btn-cancel-icon" />
               <span className="font-medium">^C — Execution cancelled. Interrupt signal sent.</span>
             </div>
