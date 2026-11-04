@@ -731,7 +731,7 @@ export default function App() {
       setActiveInteractiveSession(prev => prev ? {
         ...prev,
         fullTranscript: updatedTranscript,
-        turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, fixStatus: 'success', fixResultMessage: res.message, fixResultOutput: res.output } : t) } : t)
+        turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, fixStatus: 'success', fixResultMessage: res.message, fixResultOutput: res.output } : c) } : t)
       } : prev);
     } else if (res.status === 'failed') {
       setActiveInteractiveSession(prev => prev ? {
@@ -926,7 +926,7 @@ export default function App() {
               onCancelAutoDebugAnalysis={(tId, cId) => {
                 setActiveSimulatedSession(prev => prev ? {
                   ...prev,
-                  turns: prev.turns.map(t => t.id === turnId ? {
+                  turns: prev.turns.map(t => t.id === tId ? {
                     ...t,
                     debugCycles: t.debugCycles.map(c => c.id === cId ? { ...c, isAnalyzing: false, fixExplanation: 'Automated error diagnosis cancelled by user.', fixCommand: '', fixStatus: 'cancelled' } : c)
                   } : t)
@@ -989,7 +989,7 @@ export default function App() {
               onCancelAutoDebugAnalysis={(tId, cId) => {
                 setActiveInteractiveSession(prev => prev ? {
                   ...prev,
-                  turns: prev.turns.map(t => t.id === turnId ? {
+                  turns: prev.turns.map(t => t.id === tId ? {
                     ...t,
                     debugCycles: t.debugCycles.map(c => c.id === cId ? { ...c, isAnalyzing: false, fixExplanation: 'Automated error diagnosis cancelled by user.', fixCommand: '', fixStatus: 'cancelled' } : c)
                   } : t)
