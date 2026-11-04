@@ -32,11 +32,14 @@ export const StandaloneHistoryItem = ({ session, onUpdateThread, onCollapseTop, 
       const result = await fetchStandaloneDebug([...session.thread, { role: "user", text: currentInput }], session.ctx, settings);
       if (cancelHistoryDebugRef.current !== debugId) return;
 
+      const updatedType = result.type || session.ctx?.type || 'Command';
+      const updatedCtx = { ...session.ctx, type: updatedType };
+
       onUpdateThread([
         ...session.thread,
         { role: "user", text: currentInput },
         { role: "model", text: result.analysis }
-      ]);
+      ], updatedCtx);
     } catch (err) {
       if (cancelHistoryDebugRef.current !== debugId) return;
       setHistoryError(err.message || "Failed connection to AI provider.");

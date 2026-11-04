@@ -103,9 +103,8 @@ export const GeneralDebuggerTab = ({
       
     lastRequestedDebugInputRef.current = newStandaloneInput;
     
-    // Only a Script if a script file was attached; pasting terminal error output does not make it a script
-    const isScript = Boolean(uploadedFile);
-    const currentCtx = { ...debugCtx, type: isScript ? 'Script' : 'Command' };
+    const initialType = uploadedFile ? 'Script' : undefined;
+    const currentCtx = { ...debugCtx, ...(initialType ? { type: initialType } : {}) };
 
     const genId = ++cancelDebuggerRef.current;
     setDebugError(null);
@@ -123,12 +122,16 @@ export const GeneralDebuggerTab = ({
       setUploadedFile(null);
       setNewStandaloneInput('');
 
+      // Auto-determine type: file uploads are always Script, otherwise intelligently set by AI
+      const determinedType = uploadedFile ? 'Script' : (result.type || 'Command');
+      const finalCtx = { ...debugCtx, type: determinedType };
+
       const initialThread = [
         { role: "user", text: combinedInput },
         { role: "model", text: result.analysis }
       ];
       setActiveStandaloneSummary(result.summary);
-      setActiveStandaloneCtx(currentCtx);
+      setActiveStandaloneCtx(finalCtx);
       setActiveStandaloneThread(initialThread);
 
       setDebugHistory(prev => [
@@ -138,7 +141,7 @@ export const GeneralDebuggerTab = ({
           timestamp: new Date().toLocaleString(),
           unixTime: Date.now(),
           thread: initialThread,
-          ctx: currentCtx
+          ctx: finalCtx
         },
         ...prev.filter(h => h.id !== newSessionId)
       ]);
@@ -166,14 +169,18 @@ export const GeneralDebuggerTab = ({
       const result = await fetchStandaloneDebug([...activeStandaloneThread, { role: "user", text: currentInput }], activeStandaloneCtx, settings);
       if (cancelDebuggerRef.current !== genId) return;
 
+      const updatedType = result.type || activeStandaloneCtx?.type || 'Command';
+      const updatedCtx = { ...activeStandaloneCtx, type: updatedType };
+
       const updatedThread = [
         ...activeStandaloneThread,
         { role: "user", text: currentInput },
         { role: "model", text: result.analysis }
       ];
+      setActiveStandaloneCtx(updatedCtx);
       setActiveStandaloneThread(updatedThread);
 
-      setDebugHistory(prev => prev.map(s => s.id === activeDebugSessionId ? { ...s, thread: updatedThread } : s));
+      setDebugHistory(prev => prev.map(s => s.id === activeDebugSessionId ? { ...s, thread: updatedThread, ctx: updatedCtx } : s));
     } catch (err) {
       if (cancelDebuggerRef.current !== genId) return;
       setDebugError(err.message || "Failed connection to AI provider. Please verify your API key in Settings.");
@@ -464,11 +471,11 @@ export const GeneralDebuggerTab = ({
             )}
             {filterHistory(displayDebugHistory, debuggerSearch).sort((a,b) => b.unixTime - a.unixTime).map((session, index) => (
               <StandaloneHistoryItem
-                key={index}
+                key={session.id || index}
                 session={session}
                 settings={settings}
                 onCollapseTop={() => setIsDebuggerExpanded(false)}
-                onUpdateThread={(thread) => setDebugHistory(prev => prev.map((s, i) => i === index ? { ...s, thread } : s))}
+                onUpdateThread={(thread, updatedCtx) => setDebugHistory(prev => prev.map(s => s.id === session.id ? { ...s, thread, ...(updatedCtx ? { ctx: updatedCtx } : {}) } : s))}
               />
             ))}
           </div>

@@ -350,7 +350,6 @@ Return STRICTLY a JSON object matching this schema:
   return cleanJsonResponse(raw);
 };
 
-// FIXED: Now strictly formats and un-escapes clean markdown so raw JSON and literal \n never leak to the UI
 export const fetchCommandDebug = async (prompt, command, debugThread = [], currentInput, ctx, settingsOrKey = '') => {
   const settings = typeof settingsOrKey === 'object' ? settingsOrKey : { apiKey: settingsOrKey, apiProvider: 'gemini' };
   const cleanShell = (ctx?.shell || 'shell').replace(/\s*\(Elevated\)/i, '').trim();
@@ -376,18 +375,30 @@ export const fetchStandaloneDebug = async (messages = [], ctx, settingsOrKey = '
   const cleanShell = (ctx?.shell || 'shell').replace(/\s*\(Elevated\)/i, '').trim();
   const cleanOs = (ctx?.os || 'Windows').replace(/\s*\(Simulated\)/i, '').trim();
 
-  const systemPrompt = `You are an expert ${cleanShell} debugger on ${cleanOs}. The user is working with a ${ctx?.type || 'Command'}. Always provide a suggested fix or corrected ${(ctx?.type || 'command').toLowerCase()} with non-interactive flags where applicable (e.g. -Confirm:$false, -Force, -y) and wrap any suggested code fixes, commands, or scripts inside standard markdown code blocks (\`\`\`). Evaluate if the suggested fix requires Administrator or root privileges and return "requiresElevation" accordingly. Return STRICTLY JSON: {"summary": "A brief summary", "analysis": "Your detailed explanation and fixes.", "requiresElevation": false}`;
+  const systemPrompt = `You are an expert ${cleanShell} debugger on ${cleanOs}.
+Analyze the user's issue, error log, and code to automatically determine whether the problem involves a multi-line "Script" (e.g., script files, functions, multi-line blocks, automation scripts) or a single-line "Command".
+Always provide a suggested fix or corrected code with non-interactive flags where applicable (e.g. -Confirm:$false, -Force, -y) and wrap any suggested code fixes, commands, or scripts inside standard markdown code blocks (\`\`\`).
+Evaluate if the suggested fix requires Administrator or root privileges and return "requiresElevation" accordingly.
+Return STRICTLY a JSON object matching this schema:
+{
+  "summary": "A brief summary",
+  "analysis": "Your detailed explanation and fixes.",
+  "type": "Script" or "Command",
+  "requiresElevation": false
+}`;
   const userMessages = messages.map(msg => ({ role: msg.role === 'model' ? 'assistant' : msg.role, text: msg.text }));
 
   const raw = await callAiProvider(systemPrompt, userMessages, settings);
   try {
     const parsed = cleanJsonResponse(raw);
+    const resolvedType = (parsed.type && String(parsed.type).toLowerCase() === 'script') ? 'Script' : 'Command';
     return { 
       summary: parsed.summary || "Debug Session", 
       analysis: parsed.analysis || "",
+      type: resolvedType,
       requiresElevation: Boolean(parsed.requiresElevation)
     };
   } catch {
-    return { summary: "Debug Session", analysis: raw, requiresElevation: false };
+    return { summary: "Debug Session", analysis: raw, type: 'Command', requiresElevation: false };
   }
 };
