@@ -504,7 +504,6 @@ export default function App() {
     }
   };
 
-  // Choice 3: End & Run as Admin in Simulated Terminal
   const handleSimulatedEndAndRunAsAdmin = () => {
     const targetTurn = simElevationModalTurn;
     setSimElevationModalTurn(null);
@@ -578,7 +577,10 @@ export default function App() {
       isElevated
     };
 
+    // Immediately trigger React state and force an instantaneous paint frame before starting IPC
     setIsInteractiveStarting(true);
+    await new Promise(resolve => setTimeout(resolve, 20));
+
     try {
       const startRes = await startTerminalSession(sessionCtx, settings, false);
       if (startRes?.status === 'failed') {
@@ -729,7 +731,7 @@ export default function App() {
       setActiveInteractiveSession(prev => prev ? {
         ...prev,
         fullTranscript: updatedTranscript,
-        turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, fixStatus: 'success', fixResultMessage: res.message, fixResultOutput: res.output } : c) } : t)
+        turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, fixStatus: 'success', fixResultMessage: res.message, fixResultOutput: res.output } : t) } : t)
       } : prev);
     } else if (res.status === 'failed') {
       setActiveInteractiveSession(prev => prev ? {
@@ -787,6 +789,8 @@ export default function App() {
     };
 
     setIsInteractiveStarting(true);
+    await new Promise(resolve => setTimeout(resolve, 20));
+
     try {
       const startRes = await startTerminalSession(sessionCtx, settings, false);
       if (startRes?.status === 'failed') {
@@ -922,7 +926,7 @@ export default function App() {
               onCancelAutoDebugAnalysis={(tId, cId) => {
                 setActiveSimulatedSession(prev => prev ? {
                   ...prev,
-                  turns: prev.turns.map(t => t.id === tId ? {
+                  turns: prev.turns.map(t => t.id === turnId ? {
                     ...t,
                     debugCycles: t.debugCycles.map(c => c.id === cId ? { ...c, isAnalyzing: false, fixExplanation: 'Automated error diagnosis cancelled by user.', fixCommand: '', fixStatus: 'cancelled' } : c)
                   } : t)
