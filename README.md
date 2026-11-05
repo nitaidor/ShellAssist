@@ -12,12 +12,14 @@ Working in the terminal often means memorizing obscure flags, constantly searchi
 * **Multi-AI Engine:** Bring your own API key (Gemini, ChatGPT, Claude) or run 100% privately via local Ollama.
 * **5 Themes:** Dark, Light, Terminal Green, Terminal Red, and Monochrome.
 
-## Prerequisites
-Before you begin, ensure you have met the following requirements:
-* [Node.js](https://nodejs.org/) installed
-* API key (Gemini, ChatGPT, Claude) or local Ollama
-
 ## Installation
+
+### Option 1: Download Pre-Built Executables
+Download the latest installer or portable executable directly from the [Releases page](https://github.com/nitaidor/ShellAssist/releases/latest).
+
+### Option 2: Build from Source
+Before you begin, ensure you have [Node.js](https://nodejs.org/) installed.
+
 1. Clone the repository:
    ```bash
    git clone https://github.com/nitaidor/ShellAssist.git
@@ -31,24 +33,29 @@ Before you begin, ensure you have met the following requirements:
    install.bat
    ```
 
-## Usage
-To install dependencies manually, run:
+## Usage (Development)
+* To install dependencies manually, run:
    ```bash
    npm install
    ```
-To start the application in development mode, run:
+* To start the application in development mode, run:
    ```bash
    npm run dev
    ```
-To compile the production web bundle, run:
+* To compile the production web bundle, run:
    ```bash
    npm run build
    ```
-To compile the bundle and package the Windows desktop executables, run:
+* To compile the bundle and package the Windows desktop executables, run:
    ```bash
    npm run dist
    ```
 
+## License
+Distributed under the MIT License. See `LICENSE` for more information.
+
 ## Acknowledgments
-* Icons by [Lucide](https://lucide.dev) (ISC License)
-* UI framework by [Tailwind CSS](https://tailwindcss.com) (MIT License)
+* Desktop framework by [Electron](https://www.electronjs.org) (MIT License).
+* Frontend library by [React](https://react.dev) (MIT License).
+* UI framework by [Tailwind CSS](https://tailwindcss.com) (MIT License).
+* Icons by [Lucide](https://lucide.dev) (ISC License).
