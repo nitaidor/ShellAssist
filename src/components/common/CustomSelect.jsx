@@ -7,7 +7,6 @@ export const CustomSelect = ({
   options = [],
   disabled = false,
   className = '',
-  hideSelectedHighlight = false,
   alignRight = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -52,10 +51,6 @@ export const CustomSelect = ({
             const optDisabled = getOptionDisabled(opt);
             const isSelected = optVal === value;
 
-            const activeClasses = hideSelectedHighlight
-              ? (isSelected ? 'font-bold hover:bg-[#30363d]' : 'font-medium hover:bg-[#30363d]')
-              : (isSelected ? 'font-bold active-variant' : 'font-medium hover:bg-[#30363d]');
-
             return (
               <button
                 key={optVal}
@@ -68,7 +63,11 @@ export const CustomSelect = ({
                   }
                 }}
                 className={`theme-menu-item w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center justify-between gap-3 ${
-                  optDisabled ? 'opacity-40 cursor-not-allowed' : activeClasses
+                  optDisabled
+                    ? 'opacity-40 cursor-not-allowed'
+                    : isSelected
+                    ? 'font-bold active-variant'
+                    : 'font-medium hover:bg-[#30363d]'
                 }`}
               >
                 <span className="truncate">{optLabel}</span>
@@ -78,7 +77,7 @@ export const CustomSelect = ({
                       {optBadge}
                     </span>
                   )}
-                  {!hideSelectedHighlight && isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                  {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
                 </div>
               </button>
             );

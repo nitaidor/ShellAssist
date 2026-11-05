@@ -16,54 +16,79 @@ import {
 } from 'lucide-react';
 import CustomSelect from '../common/CustomSelect';
 
-const FAMILY_ORDER = [
-  'Gemma (Google)',
-  'Qwen (Alibaba)',
-  'Llama (Meta)',
-  'DeepSeek',
-  'Mistral (Mistral AI)',
-  'Phi (Microsoft)',
-  'Other Models'
-];
-
-const inferFamilyForModel = (modelTag = '') => {
-  const lower = modelTag.toLowerCase();
-  if (lower.startsWith('gemma')) return 'Gemma (Google)';
-  if (lower.startsWith('qwen')) return 'Qwen (Alibaba)';
-  if (lower.startsWith('llama')) return 'Llama (Meta)';
-  if (lower.startsWith('deepseek')) return 'DeepSeek';
-  if (
-    lower.startsWith('mistral') ||
-    lower.startsWith('codestral') ||
-    lower.startsWith('devstral') ||
-    lower.startsWith('mixtral') ||
-    lower.startsWith('ministral')
-  ) {
-    return 'Mistral (Mistral AI)';
-  }
-  if (lower.startsWith('phi')) return 'Phi (Microsoft)';
-  return 'Other Models';
+const KNOWN_FAMILY_CASING = {
+  gemma: 'Gemma',
+  qwen: 'Qwen',
+  llama: 'Llama',
+  tinyllama: 'TinyLlama',
+  codellama: 'CodeLlama',
+  deepseek: 'DeepSeek',
+  mistral: 'Mistral',
+  mixtral: 'Mistral',
+  codestral: 'Mistral',
+  devstral: 'Mistral',
+  ministral: 'Mistral',
+  mathstral: 'Mistral',
+  phi: 'Phi',
+  gpt: 'GPT-OSS',
+  glm: 'GLM',
+  minimax: 'MiniMax',
+  nemotron: 'Nemotron',
+  granite: 'Granite',
+  command: 'Command-R',
+  starcoder: 'StarCoder',
+  olmo: 'OLMo',
+  smollm: 'SmolLM',
+  falcon: 'Falcon',
+  aya: 'Aya',
+  cogito: 'Cogito',
+  kimi: 'Kimi',
+  dolphin: 'Dolphin',
+  wizardlm: 'WizardLM',
+  wizardcoder: 'WizardCoder',
+  yi: 'Yi',
+  solar: 'Solar',
+  internlm: 'InternLM',
+  opencoder: 'OpenCoder',
+  qWQ: 'Qwen',
+  qwq: 'Qwen'
 };
 
-// Formats a raw tag like "gemma4:e2b" into "Gemma 4 E2B (gemma4:e2b)"
+// Dynamically derives the Model Family name directly from any web or local model tag
+const inferFamilyForModel = (modelTag = '') => {
+  const clean = modelTag.trim().toLowerCase();
+  if (!clean) return 'Gemma';
+  const [base] = clean.split(':');
+
+  // Extract the alphabetic family prefix before digits or hyphens (e.g., "gemma4" -> "gemma", "qwen2.5-coder" -> "qwen")
+  const prefixMatch = base.match(/^([a-z]+)/);
+  const rootPrefix = prefixMatch ? prefixMatch[1] : base;
+
+  if (KNOWN_FAMILY_CASING[rootPrefix]) {
+    return KNOWN_FAMILY_CASING[rootPrefix];
+  }
+
+  // Fallback for any brand-new future model family from the web: capitalize cleanly
+  return rootPrefix.charAt(0).toUpperCase() + rootPrefix.slice(1);
+};
+
+// Formats a raw tag like "gemma4:e4b" into "Gemma 4 E4B (gemma4:e4b)"
 const formatModelDisplayLabel = (rawTag = '') => {
   const clean = rawTag.trim();
   if (!clean) return '';
   const [base, sizeTag] = clean.split(':');
   const formattedBase = base
-    .replace(/^gemma(\d)/i, 'Gemma $1')
-    .replace(/^qwen(\d)/i, 'Qwen $1')
-    .replace(/^llama(\d)/i, 'Llama $1')
-    .replace(/^deepseek-r1/i, 'DeepSeek R1')
+    .replace(/^([a-z]+)(\d)/i, '$1 $2')
+    .replace(/^deepseek-r(\d)/i, 'DeepSeek R$1')
     .replace(/^deepseek-v(\d)/i, 'DeepSeek V$1')
     .replace(/^deepseek-coder-v(\d)/i, 'DeepSeek Coder V$1')
     .replace(/^deepseek/i, 'DeepSeek')
-    .replace(/^mistral-small(\d)/i, 'Mistral Small $1')
-    .replace(/^mistral/i, 'Mistral')
-    .replace(/^codestral/i, 'Codestral')
-    .replace(/^devstral/i, 'Devstral')
-    .replace(/^mixtral/i, 'Mixtral')
-    .replace(/^phi(\d)/i, 'Phi-$1')
+    .replace(/^gpt-oss/i, 'GPT-OSS')
+    .replace(/^glm-(\d)/i, 'GLM-$1')
+    .replace(/^phi (\d)/i, 'Phi-$1')
+    .replace(/^olmo (\d)/i, 'OLMo $1')
+    .replace(/^smollm (\d)/i, 'SmolLM $1')
+    .replace(/^starcoder (\d)/i, 'StarCoder $1')
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
@@ -82,7 +107,7 @@ const extractModelVersion = (baseName = '') => {
 
 // Extracts numeric parameter size in billions for sorting (e.g., "270m" -> 0.27, "e2b" -> 2, "e4b" -> 4, "12b" -> 12, "8x7b" -> 56)
 const extractParamSizeBillions = (sizeTag = '') => {
-  if (!sizeTag || sizeTag.toLowerCase() === 'latest') return 999999;
+  if (!sizeTag || sizeTag.toLowerCase() === 'latest') return 0;
   const lower = sizeTag.toLowerCase();
   const moeMatch = lower.match(/^(\d+)x(\d+(?:\.\d+)?)([bm])$/);
   if (moeMatch) {
@@ -94,11 +119,12 @@ const extractParamSizeBillions = (sizeTag = '') => {
     const val = parseFloat(stdMatch[1]);
     return stdMatch[2] === 'm' ? val / 1000 : val;
   }
-  return 999998;
+  return 0.001;
 };
 
-// Sorts models: Newer model generation first (e.g. Gemma 4 above Gemma 3),
-// and parameter size smallest-to-largest within the same model (e.g. E2B above E4B above 12B)
+// Sorts models so stronger/newer models appear on top:
+// 1. Newer model generation first (e.g. Gemma 4 above Gemma 3)
+// 2. Larger parameter size first within the same model (e.g. 31B -> 26B -> 12B -> E4B -> E2B)
 const sortModelsList = (models = []) => {
   return [...models].sort((a, b) => {
     const [baseA, sizeA = ''] = a.value.toLowerCase().split(':');
@@ -107,14 +133,14 @@ const sortModelsList = (models = []) => {
     if (baseA !== baseB) {
       const verA = extractModelVersion(baseA);
       const verB = extractModelVersion(baseB);
-      if (verA !== verB) return verB - verA; // Newer version first (4 above 3)
+      if (verA !== verB) return verB - verA; // Newer generation on top (4 above 3)
       return baseA.localeCompare(baseB);
     }
 
     const paramsA = extractParamSizeBillions(sizeA);
     const paramsB = extractParamSizeBillions(sizeB);
-    if (paramsA !== paramsB) return paramsA - paramsB; // Ascending size (E2B above E4B above 12B)
-    return sizeA.localeCompare(sizeB);
+    if (paramsA !== paramsB) return paramsB - paramsA; // Stronger/larger parameter size on top (E4B above E2B)
+    return sizeB.localeCompare(sizeA);
   });
 };
 
@@ -162,7 +188,7 @@ export const SettingsModal = ({
     });
   };
 
-  // Build catalog strictly from web-fetched models + locally installed models (no static unsupported presets)
+  // Build families & models dynamically from web catalog + locally installed models
   const buildDynamicCatalog = () => {
     const grouped = {};
 
@@ -181,12 +207,13 @@ export const SettingsModal = ({
       }
     };
 
-    onlineCatalogModels.forEach(addTag);
+    // Add installed and running models first, then all web catalog models
     installedModels.forEach(addTag);
     if (runningModel) addTag(runningModel);
+    onlineCatalogModels.forEach(addTag);
 
     const sortedCatalog = {};
-    FAMILY_ORDER.forEach((fam) => {
+    Object.keys(grouped).forEach((fam) => {
       if (grouped[fam] && grouped[fam].length > 0) {
         sortedCatalog[fam] = sortModelsList(grouped[fam]);
       }
@@ -198,7 +225,7 @@ export const SettingsModal = ({
   const dynamicCatalog = buildDynamicCatalog();
   const familyOptions = Object.keys(dynamicCatalog).length > 0
     ? Object.keys(dynamicCatalog)
-    : ['Gemma (Google)'];
+    : [selectedFamily || 'Gemma'];
 
   const getShortModelLabel = (modelTag) => {
     if (!modelTag) return 'Model';
@@ -243,8 +270,11 @@ export const SettingsModal = ({
       (m) => m === selectedUninstallModel && !isRunningMatch(m)
     );
     if (!currentValid) {
-      const firstDeletable = installedModels.find((m) => !isRunningMatch(m));
-      setSelectedUninstallModel(firstDeletable || installedModels[0] || '');
+      const sortedInstalled = sortModelsList(
+        installedModels.map((tag) => ({ value: tag, label: formatModelDisplayLabel(tag) }))
+      ).map((item) => item.value);
+      const firstDeletable = sortedInstalled.find((m) => !isRunningMatch(m));
+      setSelectedUninstallModel(firstDeletable || sortedInstalled[0] || '');
     }
   }, [installedModels, runningModel, isOllamaRunning]);
 
@@ -303,7 +333,7 @@ export const SettingsModal = ({
       }
     } catch {}
 
-    // Fetch live model catalog from web ONLY when Ollama is running
+    // Fetch live model families & models from web ONLY when Ollama is running
     if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.fetchOllamaCatalog === 'function') {
       window.electronAPI.fetchOllamaCatalog().then((res) => {
         if (res?.status === 'ok' && Array.isArray(res.models) && res.models.length > 0) {
@@ -783,7 +813,7 @@ export const SettingsModal = ({
     return [];
   };
 
-  // Build dropdown options for the selected family with "Installed" badges (no row highlight)
+  // Build dropdown options for the selected family with "Installed" badges
   const rawFamilyModels = dynamicCatalog[selectedFamily] || [];
   const currentFamilyModels = rawFamilyModels.length > 0
     ? rawFamilyModels.map((m) => ({
@@ -1085,7 +1115,6 @@ export const SettingsModal = ({
                         onChange={handleModelChange}
                         options={currentFamilyModels}
                         disabled={areDropdownsLocked}
-                        hideSelectedHighlight={true}
                         alignRight={true}
                       />
                     </div>
@@ -1165,7 +1194,6 @@ export const SettingsModal = ({
                         onChange={(val) => setSelectedUninstallModel(val)}
                         options={uninstallOptions}
                         disabled={!isOllamaRunning || installedModels.length === 0 || ollamaActionState !== 'idle' || modelActionState !== 'idle'}
-                        hideSelectedHighlight={true}
                       />
                     </div>
                     <div className="sm:col-span-4">
