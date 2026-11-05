@@ -1,4 +1,7 @@
+<img src="assets/icon.svg" alt="ShellAssist" width="130" height="auto">
+
 # ShellAssist
+
 An AI-powered desktop assistant to build, analyze, debug, simulate, and execute shell commands across Windows, macOS, and Linux.
 
 ## About The Project
