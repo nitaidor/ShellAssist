@@ -269,19 +269,61 @@ ipcMain.handle('stop-ollama', async () => {
   return await stopOllamaProcessesSyncOrAsync(endpoint, true);
 });
 
+// Fetches live supported models and their size tags directly from https://ollama.com/library
 ipcMain.handle('fetch-ollama-catalog', async () => {
   try {
     const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), 4000);
-    const res = await fetch('https://ollama.com/api/tags', { signal: controller.signal });
+    const t = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch('https://ollama.com/library', { signal: controller.signal });
     clearTimeout(t);
+
     if (res.ok) {
-      const data = await res.json();
-      if (Array.isArray(data?.models)) {
-        return {
-          status: 'ok',
-          models: data.models.map(m => m.name || m.model).filter(Boolean)
-        };
+      const html = await res.text();
+      const blocks = html.split('href="/library/');
+      const discovered = [];
+      const seen = new Set();
+
+      for (let i = 1; i < blocks.length; i++) {
+        const block = blocks[i];
+        const nameMatch = block.match(/^([^"/?#]+)/);
+        if (!nameMatch) continue;
+        const modelName = decodeURIComponent(nameMatch[1]).trim().toLowerCase();
+        if (!modelName) continue;
+
+        // Skip pure embedding models that cannot generate chat completions
+        const isEmbedding = /x-test-capability[^>]*>\s*embedding\s*</i.test(block) ||
+          modelName.includes('embed') ||
+          modelName.includes('minilm') ||
+          modelName === 'bge-m3';
+        if (isEmbedding) continue;
+
+        // Extract all parameter size tags listed on the model card (e.g., e2b, e4b, 4b, 12b, 8x7b, 270m)
+        const sizeMatches = [...block.matchAll(/x-test-size[^>]*>\s*([a-z0-9.]+)\s*</gi)].map(m => m[1].toLowerCase());
+        let sizes = sizeMatches;
+        if (sizes.length === 0) {
+          const fallbackMatches = [...block.matchAll(/<span[^>]*>\s*((?:e?\d+(?:\.\d+)?[bm]|\d+x\d+(?:\.\d+)?[bm]))\s*<\/span>/gi)].map(m => m[1].toLowerCase());
+          sizes = fallbackMatches;
+        }
+
+        if (sizes.length > 0) {
+          for (const sz of sizes) {
+            const fullTag = `${modelName}:${sz}`;
+            if (!seen.has(fullTag)) {
+              seen.add(fullTag);
+              discovered.push(fullTag);
+            }
+          }
+        } else {
+          const fullTag = `${modelName}:latest`;
+          if (!seen.has(fullTag)) {
+            seen.add(fullTag);
+            discovered.push(fullTag);
+          }
+        }
+      }
+
+      if (discovered.length > 0) {
+        return { status: 'ok', models: discovered };
       }
     }
   } catch {}

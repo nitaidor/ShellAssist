@@ -16,52 +16,15 @@ import {
 } from 'lucide-react';
 import CustomSelect from '../common/CustomSelect';
 
-const BASE_OLLAMA_CATALOG = {
-  'Gemma (Google)': [
-    { value: 'gemma4:e2b', label: 'Gemma 4 E2B (gemma4:e2b)' },
-    { value: 'gemma4:e4b', label: 'Gemma 4 E4B (gemma4:e4b)' },
-    { value: 'gemma4:12b', label: 'Gemma 4 12B (gemma4:12b)' },
-    { value: 'gemma4:27b', label: 'Gemma 4 27B (gemma4:27b)' },
-    { value: 'gemma3:4b', label: 'Gemma 3 4B (gemma3:4b)' },
-    { value: 'gemma3:12b', label: 'Gemma 3 12B (gemma3:12b)' },
-    { value: 'gemma3:27b', label: 'Gemma 3 27B (gemma3:27b)' }
-  ],
-  'Qwen (Alibaba)': [
-    { value: 'qwen2.5-coder:3b', label: 'Qwen 2.5 Coder 3B (qwen2.5-coder:3b)' },
-    { value: 'qwen2.5-coder:7b', label: 'Qwen 2.5 Coder 7B (qwen2.5-coder:7b)' },
-    { value: 'qwen2.5-coder:14b', label: 'Qwen 2.5 Coder 14B (qwen2.5-coder:14b)' },
-    { value: 'qwen2.5-coder:32b', label: 'Qwen 2.5 Coder 32B (qwen2.5-coder:32b)' },
-    { value: 'qwen3:4b', label: 'Qwen 3 4B (qwen3:4b)' },
-    { value: 'qwen3:8b', label: 'Qwen 3 8B (qwen3:8b)' },
-    { value: 'qwen3:14b', label: 'Qwen 3 14B (qwen3:14b)' },
-    { value: 'qwen3:32b', label: 'Qwen 3 32B (qwen3:32b)' }
-  ],
-  'Llama (Meta)': [
-    { value: 'llama3.2:1b', label: 'Llama 3.2 1B (llama3.2:1b)' },
-    { value: 'llama3.2:3b', label: 'Llama 3.2 3B (llama3.2:3b)' },
-    { value: 'llama3.1:8b', label: 'Llama 3.1 8B (llama3.1:8b)' },
-    { value: 'llama3.3:70b', label: 'Llama 3.3 70B (llama3.3:70b)' }
-  ],
-  'DeepSeek': [
-    { value: 'deepseek-r1:1.5b', label: 'DeepSeek R1 1.5B (deepseek-r1:1.5b)' },
-    { value: 'deepseek-r1:7b', label: 'DeepSeek R1 7B (deepseek-r1:7b)' },
-    { value: 'deepseek-r1:8b', label: 'DeepSeek R1 8B (deepseek-r1:8b)' },
-    { value: 'deepseek-r1:14b', label: 'DeepSeek R1 14B (deepseek-r1:14b)' },
-    { value: 'deepseek-r1:32b', label: 'DeepSeek R1 32B (deepseek-r1:32b)' },
-    { value: 'deepseek-coder-v2:16b', label: 'DeepSeek Coder V2 16B (deepseek-coder-v2:16b)' }
-  ],
-  'Mistral (Mistral AI)': [
-    { value: 'mistral:7b', label: 'Mistral 7B (mistral:7b)' },
-    { value: 'mistral-nemo:12b', label: 'Mistral Nemo 12B (mistral-nemo:12b)' },
-    { value: 'codestral:22b', label: 'Codestral 22B (codestral:22b)' },
-    { value: 'mistral-small:24b', label: 'Mistral Small 24B (mistral-small:24b)' }
-  ],
-  'Phi (Microsoft)': [
-    { value: 'phi4-mini:3.8b', label: 'Phi-4 Mini 3.8B (phi4-mini:3.8b)' },
-    { value: 'phi4:14b', label: 'Phi-4 14B (phi4:14b)' },
-    { value: 'phi3.5:3.8b', label: 'Phi-3.5 Mini 3.8B (phi3.5:3.8b)' }
-  ]
-};
+const FAMILY_ORDER = [
+  'Gemma (Google)',
+  'Qwen (Alibaba)',
+  'Llama (Meta)',
+  'DeepSeek',
+  'Mistral (Mistral AI)',
+  'Phi (Microsoft)',
+  'Other Models'
+];
 
 const inferFamilyForModel = (modelTag = '') => {
   const lower = modelTag.toLowerCase();
@@ -69,11 +32,90 @@ const inferFamilyForModel = (modelTag = '') => {
   if (lower.startsWith('qwen')) return 'Qwen (Alibaba)';
   if (lower.startsWith('llama')) return 'Llama (Meta)';
   if (lower.startsWith('deepseek')) return 'DeepSeek';
-  if (lower.startsWith('mistral') || lower.startsWith('codestral') || lower.startsWith('devstral') || lower.startsWith('mixtral')) {
+  if (
+    lower.startsWith('mistral') ||
+    lower.startsWith('codestral') ||
+    lower.startsWith('devstral') ||
+    lower.startsWith('mixtral') ||
+    lower.startsWith('ministral')
+  ) {
     return 'Mistral (Mistral AI)';
   }
   if (lower.startsWith('phi')) return 'Phi (Microsoft)';
-  return 'Other / Custom';
+  return 'Other Models';
+};
+
+// Formats a raw tag like "gemma4:e2b" into "Gemma 4 E2B (gemma4:e2b)"
+const formatModelDisplayLabel = (rawTag = '') => {
+  const clean = rawTag.trim();
+  if (!clean) return '';
+  const [base, sizeTag] = clean.split(':');
+  const formattedBase = base
+    .replace(/^gemma(\d)/i, 'Gemma $1')
+    .replace(/^qwen(\d)/i, 'Qwen $1')
+    .replace(/^llama(\d)/i, 'Llama $1')
+    .replace(/^deepseek-r1/i, 'DeepSeek R1')
+    .replace(/^deepseek-v(\d)/i, 'DeepSeek V$1')
+    .replace(/^deepseek-coder-v(\d)/i, 'DeepSeek Coder V$1')
+    .replace(/^deepseek/i, 'DeepSeek')
+    .replace(/^mistral-small(\d)/i, 'Mistral Small $1')
+    .replace(/^mistral/i, 'Mistral')
+    .replace(/^codestral/i, 'Codestral')
+    .replace(/^devstral/i, 'Devstral')
+    .replace(/^mixtral/i, 'Mixtral')
+    .replace(/^phi(\d)/i, 'Phi-$1')
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const formattedSize = sizeTag && sizeTag.toLowerCase() !== 'latest'
+    ? ` ${sizeTag.toUpperCase()}`
+    : '';
+
+  return `${formattedBase}${formattedSize} (${clean})`;
+};
+
+// Extracts major/minor version number from the base model name (e.g., "gemma4" -> 4, "qwen3.5" -> 3.5)
+const extractModelVersion = (baseName = '') => {
+  const match = baseName.match(/(\d+(?:\.\d+)?)/);
+  return match ? parseFloat(match[1]) : 0;
+};
+
+// Extracts numeric parameter size in billions for sorting (e.g., "270m" -> 0.27, "e2b" -> 2, "e4b" -> 4, "12b" -> 12, "8x7b" -> 56)
+const extractParamSizeBillions = (sizeTag = '') => {
+  if (!sizeTag || sizeTag.toLowerCase() === 'latest') return 999999;
+  const lower = sizeTag.toLowerCase();
+  const moeMatch = lower.match(/^(\d+)x(\d+(?:\.\d+)?)([bm])$/);
+  if (moeMatch) {
+    const mult = parseFloat(moeMatch[1]) * parseFloat(moeMatch[2]);
+    return moeMatch[3] === 'm' ? mult / 1000 : mult;
+  }
+  const stdMatch = lower.match(/^e?(\d+(?:\.\d+)?)([bm])$/);
+  if (stdMatch) {
+    const val = parseFloat(stdMatch[1]);
+    return stdMatch[2] === 'm' ? val / 1000 : val;
+  }
+  return 999998;
+};
+
+// Sorts models: Newer model generation first (e.g. Gemma 4 above Gemma 3),
+// and parameter size smallest-to-largest within the same model (e.g. E2B above E4B above 12B)
+const sortModelsList = (models = []) => {
+  return [...models].sort((a, b) => {
+    const [baseA, sizeA = ''] = a.value.toLowerCase().split(':');
+    const [baseB, sizeB = ''] = b.value.toLowerCase().split(':');
+
+    if (baseA !== baseB) {
+      const verA = extractModelVersion(baseA);
+      const verB = extractModelVersion(baseB);
+      if (verA !== verB) return verB - verA; // Newer version first (4 above 3)
+      return baseA.localeCompare(baseB);
+    }
+
+    const paramsA = extractParamSizeBillions(sizeA);
+    const paramsB = extractParamSizeBillions(sizeB);
+    if (paramsA !== paramsB) return paramsA - paramsB; // Ascending size (E2B above E4B above 12B)
+    return sizeA.localeCompare(sizeB);
+  });
 };
 
 export const SettingsModal = ({
@@ -97,7 +139,8 @@ export const SettingsModal = ({
   const [runningModel, setRunningModel] = useState('');
   const [selectedFamily, setSelectedFamily] = useState(() => inferFamilyForModel(settings?.localModel || 'gemma4:e4b'));
   const [selectedModel, setSelectedModel] = useState(() => String(settings?.localModel || 'gemma4:e4b'));
-  const [modelActionState, setModelActionState] = useState('idle'); // 'idle' | 'starting' | 'stopping' | 'installing'
+  const [selectedUninstallModel, setSelectedUninstallModel] = useState('');
+  const [modelActionState, setModelActionState] = useState('idle'); // 'idle' | 'starting' | 'stopping' | 'installing' | 'uninstalling'
   const [statusMessage, setStatusMessage] = useState('Checking Ollama status...');
   const [installProgress, setInstallProgress] = useState(null);
   const [ollamaError, setOllamaError] = useState(null);
@@ -109,56 +152,103 @@ export const SettingsModal = ({
     return String(settings?.localEndpoint || 'http://localhost:11434').trim().replace(/\/+$/, '');
   };
 
-  // Merge base catalog + online fetched models + locally installed models
-  const buildMergedCatalog = () => {
-    const merged = {};
-    Object.keys(BASE_OLLAMA_CATALOG).forEach((fam) => {
-      merged[fam] = [...BASE_OLLAMA_CATALOG[fam]];
-    });
-
-    const addModelToCatalog = (tag) => {
-      if (!tag || typeof tag !== 'string') return;
-      const cleanTag = tag.trim();
-      if (!cleanTag) return;
-      const fam = inferFamilyForModel(cleanTag);
-      if (!merged[fam]) merged[fam] = [];
-      const exists = merged[fam].some((m) => m.value.toLowerCase() === cleanTag.toLowerCase());
-      if (!exists) {
-        merged[fam].push({ value: cleanTag, label: cleanTag });
-      }
-    };
-
-    onlineCatalogModels.forEach(addModelToCatalog);
-    installedModels.forEach(addModelToCatalog);
-    if (runningModel) addModelToCatalog(runningModel);
-
-    return merged;
-  };
-
-  const mergedCatalog = buildMergedCatalog();
-  const familyOptions = Object.keys(mergedCatalog);
-
-  const isModelInstalled = (modelTag) => {
+  const isModelInstalled = (modelTag, customInstalledList = null) => {
     if (!modelTag) return false;
+    const list = customInstalledList || installedModels;
     const target = modelTag.toLowerCase();
-    return installedModels.some((inst) => {
+    return list.some((inst) => {
       const lowerInst = inst.toLowerCase();
       return lowerInst === target || lowerInst === `${target}:latest` || `${lowerInst}:latest` === target;
     });
   };
 
-  const getShortModelLabel = (modelTag) => {
-    if (!modelTag) return 'Model';
-    for (const fam of Object.keys(mergedCatalog)) {
-      const found = mergedCatalog[fam].find((m) => m.value === modelTag);
-      if (found) {
-        return found.label.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  // Build catalog strictly from web-fetched models + locally installed models (no static unsupported presets)
+  const buildDynamicCatalog = () => {
+    const grouped = {};
+
+    const addTag = (rawTag) => {
+      if (!rawTag || typeof rawTag !== 'string') return;
+      const cleanTag = rawTag.trim();
+      if (!cleanTag) return;
+      const fam = inferFamilyForModel(cleanTag);
+      if (!grouped[fam]) grouped[fam] = [];
+      const exists = grouped[fam].some((m) => m.value.toLowerCase() === cleanTag.toLowerCase());
+      if (!exists) {
+        grouped[fam].push({
+          value: cleanTag,
+          label: formatModelDisplayLabel(cleanTag)
+        });
       }
-    }
-    return modelTag;
+    };
+
+    onlineCatalogModels.forEach(addTag);
+    installedModels.forEach(addTag);
+    if (runningModel) addTag(runningModel);
+
+    const sortedCatalog = {};
+    FAMILY_ORDER.forEach((fam) => {
+      if (grouped[fam] && grouped[fam].length > 0) {
+        sortedCatalog[fam] = sortModelsList(grouped[fam]);
+      }
+    });
+
+    return sortedCatalog;
   };
 
-  // Sync Ollama server status, installed models, running model, and online catalog (ONLY when Ollama is running)
+  const dynamicCatalog = buildDynamicCatalog();
+  const familyOptions = Object.keys(dynamicCatalog).length > 0
+    ? Object.keys(dynamicCatalog)
+    : ['Gemma (Google)'];
+
+  const getShortModelLabel = (modelTag) => {
+    if (!modelTag) return 'Model';
+    const full = formatModelDisplayLabel(modelTag);
+    return full.replace(/\s*\([^)]*\)\s*$/, '').trim() || modelTag;
+  };
+
+  // Keep selectedFamily and selectedModel valid when dynamic catalog updates
+  useEffect(() => {
+    if (!isOllamaRunning || runningModel) return;
+    const availableFamilies = Object.keys(dynamicCatalog);
+    if (availableFamilies.length === 0) return;
+
+    const activeFam = availableFamilies.includes(selectedFamily)
+      ? selectedFamily
+      : availableFamilies[0];
+
+    if (activeFam !== selectedFamily) {
+      setSelectedFamily(activeFam);
+    }
+
+    const famModels = dynamicCatalog[activeFam] || [];
+    if (famModels.length > 0 && !famModels.some((m) => m.value.toLowerCase() === selectedModel.toLowerCase())) {
+      const firstInstalled = famModels.find((m) => isModelInstalled(m.value));
+      setSelectedModel(firstInstalled ? firstInstalled.value : famModels[0].value);
+    }
+  }, [onlineCatalogModels, installedModels, isOllamaRunning, runningModel]);
+
+  // Keep Uninstall Model dropdown synced to an installed non-running model
+  useEffect(() => {
+    if (!isOllamaRunning || installedModels.length === 0) {
+      setSelectedUninstallModel('');
+      return;
+    }
+    const isRunningMatch = (m) =>
+      runningModel &&
+      (m.toLowerCase() === runningModel.toLowerCase() ||
+        m.toLowerCase() === `${runningModel.toLowerCase()}:latest` ||
+        `${m.toLowerCase()}:latest` === runningModel.toLowerCase());
+
+    const currentValid = installedModels.some(
+      (m) => m === selectedUninstallModel && !isRunningMatch(m)
+    );
+    if (!currentValid) {
+      const firstDeletable = installedModels.find((m) => !isRunningMatch(m));
+      setSelectedUninstallModel(firstDeletable || installedModels[0] || '');
+    }
+  }, [installedModels, runningModel, isOllamaRunning]);
+
+  // Sync Ollama server status, installed models, running model, and web catalog (ONLY when Ollama is running)
   const syncOllamaState = async (customEndpoint = null) => {
     const endpoint = customEndpoint || getCleanEndpoint();
     setOllamaError(null);
@@ -188,6 +278,7 @@ export const SettingsModal = ({
       setIsOllamaRunning(false);
       setRunningModel('');
       setInstalledModels([]);
+      setOnlineCatalogModels([]);
       setStatusMessage('Ollama Server Offline');
       if (currentProvider === 'ollama' && setApiStatus) setApiStatus('invalid');
       return;
@@ -212,7 +303,7 @@ export const SettingsModal = ({
       }
     } catch {}
 
-    // Fetch live model catalog in the background ONLY now that Ollama is confirmed running
+    // Fetch live model catalog from web ONLY when Ollama is running
     if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.fetchOllamaCatalog === 'function') {
       window.electronAPI.fetchOllamaCatalog().then((res) => {
         if (res?.status === 'ok' && Array.isArray(res.models) && res.models.length > 0) {
@@ -231,10 +322,8 @@ export const SettingsModal = ({
       if (currentProvider === 'ollama' && setApiStatus) setApiStatus('valid');
     } else {
       setRunningModel('');
-      const targetModel = selectedModel || settings?.localModel || 'gemma4:e4b';
-      const isInst = detectedInstalled.some(
-        (m) => m.toLowerCase() === targetModel.toLowerCase() || m.toLowerCase() === `${targetModel.toLowerCase()}:latest`
-      );
+      const targetModel = selectedModel || settings?.localModel || detectedInstalled[0] || 'gemma4:e4b';
+      const isInst = isModelInstalled(targetModel, detectedInstalled);
       setStatusMessage(isInst ? `Ready (${targetModel} is installed)` : `${targetModel} is not installed`);
       if (currentProvider === 'ollama' && setApiStatus) setApiStatus('invalid');
     }
@@ -256,9 +345,10 @@ export const SettingsModal = ({
     }
   }, [isOpen, currentProvider]);
 
-  // Update status message when user browses different models while no model is running
+  // Update status message when user selects different models while no model is running
   useEffect(() => {
     if (!isOllamaRunning || ollamaActionState !== 'idle' || modelActionState !== 'idle' || runningModel) return;
+    if (!selectedModel) return;
     if (isModelInstalled(selectedModel)) {
       setStatusMessage(`Ready (${selectedModel} is installed)`);
     } else {
@@ -274,7 +364,6 @@ export const SettingsModal = ({
     setOllamaError(null);
 
     if (isOllamaRunning) {
-      // Stop Ollama server (and abort any active download)
       if (pullAbortRef.current) {
         pullAbortRef.current.abort();
         pullAbortRef.current = null;
@@ -294,12 +383,12 @@ export const SettingsModal = ({
         setIsOllamaRunning(false);
         setRunningModel('');
         setInstalledModels([]);
+        setOnlineCatalogModels([]);
         setOllamaActionState('idle');
         setStatusMessage('Ollama Server Offline');
         if (setApiStatus) setApiStatus('invalid');
       }
     } else {
-      // Start Ollama server
       setOllamaActionState('starting');
       setStatusMessage('Starting Ollama server...');
 
@@ -315,7 +404,6 @@ export const SettingsModal = ({
             setStatusMessage('Ollama Server Offline');
           }
         } else {
-          // Fallback check if in browser mode
           await syncOllamaState();
         }
       } catch (err) {
@@ -330,9 +418,8 @@ export const SettingsModal = ({
   const handleFamilyChange = (newFamily) => {
     if (!isOllamaRunning || runningModel || modelActionState !== 'idle') return;
     setSelectedFamily(newFamily);
-    const modelsInFamily = mergedCatalog[newFamily] || [];
+    const modelsInFamily = dynamicCatalog[newFamily] || [];
     if (modelsInFamily.length > 0) {
-      // Prefer selecting an already-installed model in that family if one exists
       const firstInstalled = modelsInFamily.find((m) => isModelInstalled(m.value));
       setSelectedModel(firstInstalled ? firstInstalled.value : modelsInFamily[0].value);
     }
@@ -506,6 +593,46 @@ export const SettingsModal = ({
     }
   };
 
+  const handleUninstallModel = async () => {
+    if (!isOllamaRunning || !selectedUninstallModel || modelActionState !== 'idle' || ollamaActionState !== 'idle') return;
+
+    const isTargetRunning =
+      runningModel &&
+      (selectedUninstallModel.toLowerCase() === runningModel.toLowerCase() ||
+        selectedUninstallModel.toLowerCase() === `${runningModel.toLowerCase()}:latest` ||
+        `${selectedUninstallModel.toLowerCase()}:latest` === runningModel.toLowerCase());
+
+    if (isTargetRunning) return;
+
+    const target = selectedUninstallModel;
+    const endpoint = getCleanEndpoint();
+    setModelActionState('uninstalling');
+    setStatusMessage(`Uninstalling ${target}...`);
+    setOllamaError(null);
+
+    try {
+      const res = await fetch(`${endpoint}/api/delete`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: target })
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData?.error || `Failed to uninstall ${target} (HTTP ${res.status})`);
+      }
+
+      const updatedInstalled = installedModels.filter((m) => m.toLowerCase() !== target.toLowerCase());
+      setInstalledModels(updatedInstalled);
+      setStatusMessage(runningModel ? `${runningModel} is Running` : `Uninstalled ${target}`);
+    } catch (err) {
+      setOllamaError(err?.message || `Failed to uninstall ${target}.`);
+      setStatusMessage(`Failed to uninstall ${target}`);
+    } finally {
+      setModelActionState('idle');
+    }
+  };
+
   // ---------------- CLOUD API KEYS HANDLERS ----------------
   const handleSaveKey = () => {
     const trimmed = newKeyInput.trim();
@@ -656,33 +783,78 @@ export const SettingsModal = ({
     return [];
   };
 
-  // Build dropdown options for the selected family with "Installed" badges
-  const currentFamilyModels = (mergedCatalog[selectedFamily] || []).map((m) => ({
-    value: m.value,
-    label: m.label,
-    badge: isOllamaRunning && isModelInstalled(m.value) ? 'Installed' : null
-  }));
+  // Build dropdown options for the selected family with "Installed" badges (no row highlight)
+  const rawFamilyModels = dynamicCatalog[selectedFamily] || [];
+  const currentFamilyModels = rawFamilyModels.length > 0
+    ? rawFamilyModels.map((m) => ({
+        value: m.value,
+        label: m.label,
+        badge: isOllamaRunning && isModelInstalled(m.value) ? 'Installed' : null
+      }))
+    : [{ value: selectedModel || 'N/A', label: isOllamaRunning ? 'Loading models...' : 'Start Ollama to load models' }];
 
-  // Lock dropdowns when Ollama is offline, or when a model is currently running, or during transitions
+  // Build Uninstall dropdown options (installed models only, with running model grayed out & disabled)
+  const uninstallOptions = installedModels.length > 0
+    ? sortModelsList(
+        installedModels.map((tag) => ({
+          value: tag,
+          label: formatModelDisplayLabel(tag)
+        }))
+      ).map((m) => {
+        const isCurrentlyRunning =
+          Boolean(runningModel) &&
+          (m.value.toLowerCase() === runningModel.toLowerCase() ||
+            m.value.toLowerCase() === `${runningModel.toLowerCase()}:latest` ||
+            `${m.value.toLowerCase()}:latest` === runningModel.toLowerCase());
+        return {
+          value: m.value,
+          label: m.label,
+          badge: isCurrentlyRunning ? 'Running' : null,
+          disabled: isCurrentlyRunning
+        };
+      })
+    : [{ value: '', label: 'No installed models' }];
+
+  const isSelectedUninstallRunning =
+    Boolean(runningModel) &&
+    Boolean(selectedUninstallModel) &&
+    (selectedUninstallModel.toLowerCase() === runningModel.toLowerCase() ||
+      selectedUninstallModel.toLowerCase() === `${runningModel.toLowerCase()}:latest` ||
+      `${selectedUninstallModel.toLowerCase()}:latest` === runningModel.toLowerCase());
+
+  const canUninstallSelected =
+    isOllamaRunning &&
+    installedModels.length > 0 &&
+    Boolean(selectedUninstallModel) &&
+    !isSelectedUninstallRunning &&
+    ollamaActionState === 'idle' &&
+    modelActionState === 'idle';
+
+  // Lock main selection dropdowns when Ollama is offline, or when a model is running, or during transitions
   const areDropdownsLocked =
     !isOllamaRunning ||
     Boolean(runningModel) ||
+    rawFamilyModels.length === 0 ||
     ollamaActionState !== 'idle' ||
     modelActionState !== 'idle';
 
   const isModelButtonDisabled =
     !isOllamaRunning ||
+    rawFamilyModels.length === 0 ||
     ollamaActionState !== 'idle' ||
     modelActionState === 'starting' ||
-    modelActionState === 'stopping';
+    modelActionState === 'stopping' ||
+    modelActionState === 'uninstalling';
 
   const activeTargetModel = runningModel || selectedModel;
   const shortModelName = getShortModelLabel(activeTargetModel);
+  const shortUninstallName = selectedUninstallModel ? getShortModelLabel(selectedUninstallModel) : 'Model';
   const selectedIsInstalled = isModelInstalled(selectedModel);
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-[#161b22] border border-[#30363d] w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+      {/* Expanded Settings Modal Width (max-w-3xl) so model names, badges, and status progress never get cut off */}
+      <div className="bg-[#161b22] border border-[#30363d] w-full max-w-3xl rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between p-6 border-b border-[#30363d] bg-[#0d1117]">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <Settings className="w-6 h-6 text-gray-400" /> Application Settings
@@ -913,6 +1085,8 @@ export const SettingsModal = ({
                         onChange={handleModelChange}
                         options={currentFamilyModels}
                         disabled={areDropdownsLocked}
+                        hideSelectedHighlight={true}
+                        alignRight={true}
                       />
                     </div>
                   </div>
@@ -920,7 +1094,7 @@ export const SettingsModal = ({
 
                 {/* Row 2: Start/Stop/Install <Model> Button + Live Status Panel */}
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center pt-1">
-                  <div className="sm:col-span-5">
+                  <div className="sm:col-span-4">
                     <button
                       type="button"
                       onClick={handleModelPrimaryAction}
@@ -950,7 +1124,7 @@ export const SettingsModal = ({
                   </div>
 
                   {/* Live Status Box */}
-                  <div className="sm:col-span-7 bg-[#161b22] border border-[#30363d] rounded-md px-3.5 min-h-[40px] py-2 flex flex-col justify-center">
+                  <div className="sm:col-span-8 bg-[#161b22] border border-[#30363d] rounded-md px-3.5 min-h-[40px] py-2 flex flex-col justify-center">
                     <div className="flex items-center gap-2 text-xs font-mono">
                       {(ollamaActionState !== 'idle' || modelActionState !== 'idle') ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin theme-spinner shrink-0" />
@@ -979,7 +1153,39 @@ export const SettingsModal = ({
                   </p>
                 )}
 
-                {/* Row 3: Option to stop Ollama & unload model when closing ShellAssist */}
+                {/* Row 3: Uninstall Installed Model (Running model is grayed out and locked) */}
+                <div className="pt-3 border-t border-[#30363d]">
+                  <label className="block text-xs font-medium text-gray-400 mb-2">
+                    Manage Installed Models <span className="text-[11px] text-gray-500 font-normal">(Running models are locked and cannot be uninstalled)</span>
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
+                    <div className="sm:col-span-8">
+                      <CustomSelect
+                        value={selectedUninstallModel}
+                        onChange={(val) => setSelectedUninstallModel(val)}
+                        options={uninstallOptions}
+                        disabled={!isOllamaRunning || installedModels.length === 0 || ollamaActionState !== 'idle' || modelActionState !== 'idle'}
+                        hideSelectedHighlight={true}
+                      />
+                    </div>
+                    <div className="sm:col-span-4">
+                      <button
+                        type="button"
+                        onClick={handleUninstallModel}
+                        disabled={!canUninstallSelected}
+                        className="w-full h-10 px-3.5 rounded-md text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm transition-colors btn-stop-session"
+                      >
+                        {modelActionState === 'uninstalling' ? (
+                          <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Uninstalling...</>
+                        ) : (
+                          <><Trash2 className="w-3.5 h-3.5" /> Uninstall {shortUninstallName}</>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 4: Option to stop Ollama & unload model when closing ShellAssist */}
                 <div className="pt-2 border-t border-[#30363d]">
                   <label className="flex items-center justify-between bg-[#161b22] p-3 rounded-md border border-[#30363d] cursor-pointer hover:border-gray-500 transition-colors">
                     <div>

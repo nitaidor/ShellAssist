@@ -1,7 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Check } from 'lucide-react';
 
-export const CustomSelect = ({ value, onChange, options = [], disabled = false, className = '' }) => {
+export const CustomSelect = ({
+  value,
+  onChange,
+  options = [],
+  disabled = false,
+  className = '',
+  hideSelectedHighlight = false,
+  alignRight = false
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -16,6 +24,7 @@ export const CustomSelect = ({ value, onChange, options = [], disabled = false, 
   const getOptionValue = (opt) => (typeof opt === 'object' && opt !== null ? opt.value : opt);
   const getOptionLabel = (opt) => (typeof opt === 'object' && opt !== null ? (opt.label ?? opt.value) : opt);
   const getOptionBadge = (opt) => (typeof opt === 'object' && opt !== null ? opt.badge : null);
+  const getOptionDisabled = (opt) => (typeof opt === 'object' && opt !== null ? Boolean(opt.disabled) : false);
 
   const selectedOption = options.find((opt) => getOptionValue(opt) === value);
   const displayLabel = selectedOption ? getOptionLabel(selectedOption) : value;
@@ -32,19 +41,35 @@ export const CustomSelect = ({ value, onChange, options = [], disabled = false, 
         <ChevronDown className={`w-4 h-4 shrink-0 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
       {isOpen && !disabled && (
-        <div className="absolute left-0 mt-1 min-w-full w-max max-w-[340px] max-h-60 overflow-y-auto bg-[#161b22] border border-[#30363d] rounded-md shadow-2xl z-[100] py-1 animate-in fade-in zoom-in-95 duration-100">
+        <div
+          className={`absolute ${alignRight ? 'right-0' : 'left-0'} mt-1 min-w-full w-max max-w-[380px] max-h-60 overflow-y-auto bg-[#161b22] border border-[#30363d] rounded-md shadow-2xl z-[100] py-1 animate-in fade-in zoom-in-95 duration-100`}
+        >
           {options.map((opt, idx) => {
             const optVal = getOptionValue(opt);
             if (optVal === '──────────') return <div key={`sep-${idx}`} className="my-1 border-t border-[#30363d] pointer-events-none" />;
             const optLabel = getOptionLabel(opt);
             const optBadge = getOptionBadge(opt);
+            const optDisabled = getOptionDisabled(opt);
             const isSelected = optVal === value;
+
+            const activeClasses = hideSelectedHighlight
+              ? (isSelected ? 'font-bold hover:bg-[#30363d]' : 'font-medium hover:bg-[#30363d]')
+              : (isSelected ? 'font-bold active-variant' : 'font-medium hover:bg-[#30363d]');
+
             return (
               <button
                 key={optVal}
                 type="button"
-                onClick={() => { onChange(optVal); setIsOpen(false); }}
-                className={`theme-menu-item w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center justify-between gap-3 ${isSelected ? 'font-bold active-variant' : 'font-medium hover:bg-[#30363d]'}`}
+                disabled={optDisabled}
+                onClick={() => {
+                  if (!optDisabled) {
+                    onChange(optVal);
+                    setIsOpen(false);
+                  }
+                }}
+                className={`theme-menu-item w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center justify-between gap-3 ${
+                  optDisabled ? 'opacity-40 cursor-not-allowed' : activeClasses
+                }`}
               >
                 <span className="truncate">{optLabel}</span>
                 <div className="flex items-center gap-2 shrink-0">
@@ -53,7 +78,7 @@ export const CustomSelect = ({ value, onChange, options = [], disabled = false, 
                       {optBadge}
                     </span>
                   )}
-                  {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                  {!hideSelectedHighlight && isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
                 </div>
               </button>
             );
