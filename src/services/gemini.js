@@ -74,21 +74,33 @@ export const validateClaudeKey = async (apiKey) => {
   }
 };
 
-export const validateOllamaEndpoint = async (endpoint) => {
-  if (!endpoint || !endpoint.trim()) return false;
+export const getOllamaActiveState = async (endpoint = 'http://localhost:11434') => {
+  const cleanUrl = (endpoint || 'http://localhost:11434').trim().replace(/\/+$/, '');
   try {
-    const cleanUrl = endpoint.trim().replace(/\/+$/, '');
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2500);
-    const res = await fetch(`${cleanUrl}/api/tags`, {
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch(`${cleanUrl}/api/ps`, {
       method: 'GET',
       signal: controller.signal
     });
     clearTimeout(timeoutId);
-    return res.ok;
+    if (!res.ok) return { serverRunning: false, runningModel: '' };
+    const data = await res.json();
+    const list = Array.isArray(data?.models) ? data.models : [];
+    if (list.length > 0) {
+      const first = list[0];
+      const modelName = typeof first === 'string' ? first : (first?.name || first?.model || '');
+      return { serverRunning: true, runningModel: modelName };
+    }
+    return { serverRunning: true, runningModel: '' };
   } catch {
-    return false;
+    return { serverRunning: false, runningModel: '' };
   }
+};
+
+export const validateOllamaEndpoint = async (endpoint = 'http://localhost:11434') => {
+  const state = await getOllamaActiveState(endpoint);
+  return Boolean(state.serverRunning && state.runningModel);
 };
 
 // ----------------- UNIVERSAL REQUEST DISPATCHER -----------------
@@ -223,13 +235,14 @@ const callAiProvider = async (systemPrompt, userMessages, settings) => {
 
   // 4. OLLAMA (LOCAL AI)
   if (provider === 'ollama') {
-    const hasSavedConfig = Array.isArray(settings?.savedLocalConfigs) && settings.savedLocalConfigs.length > 0;
-    const cleanUrl = (settings?.localEndpoint || "").trim().replace(/\/+$/, '');
-    const activeModel = (settings?.localModel || "").trim();
+    const cleanUrl = (settings?.localEndpoint || "http://localhost:11434").trim().replace(/\/+$/, '');
+    const state = await getOllamaActiveState(cleanUrl);
 
-    if (!hasSavedConfig || !cleanUrl || !activeModel) {
-      throw new Error("Failed connection (no API key). Please add your API key in Settings.");
+    if (!state.serverRunning || !state.runningModel) {
+      throw new Error("Failed connection: Local AI is offline. Please start Ollama and a model in Settings.");
     }
+
+    const activeModel = state.runningModel || (settings?.localModel || "").trim();
 
     const messages = [
       { role: "system", content: systemPrompt },
@@ -245,7 +258,8 @@ const callAiProvider = async (systemPrompt, userMessages, settings) => {
           model: activeModel,
           messages,
           stream: false,
-          format: "json"
+          format: "json",
+          keep_alive: -1
         })
       });
     } catch {

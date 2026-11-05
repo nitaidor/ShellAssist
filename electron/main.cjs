@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain, Menu, nativeTheme } = require('electron');
 const path = require('path');
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
 const os = require('os');
 const fs = require('fs');
 
@@ -29,12 +29,15 @@ try {
 app.setPath('userData', userDataDir);
 
 const appDataFilePath = path.join(userDataDir, 'ShellAssist.json');
+let latestSavedSettings = null;
 
 ipcMain.on('load-app-data', (event) => {
   try {
     if (fs.existsSync(appDataFilePath)) {
       const raw = fs.readFileSync(appDataFilePath, 'utf8');
-      event.returnValue = JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      latestSavedSettings = parsed?.settings || null;
+      event.returnValue = parsed;
       return;
     }
   } catch (e) {}
@@ -43,6 +46,7 @@ ipcMain.on('load-app-data', (event) => {
 
 ipcMain.handle('save-app-data', async (_event, data) => {
   try {
+    latestSavedSettings = data?.settings || null;
     if (!fs.existsSync(userDataDir)) {
       fs.mkdirSync(userDataDir, { recursive: true });
     }
@@ -60,6 +64,231 @@ ipcMain.on('set-native-theme', (_event, mode) => {
   }
 });
 
+// ---------------- OLLAMA LOCAL AI MANAGER ----------------
+function resolveOllamaEndpoint() {
+  const envHost = (process.env.OLLAMA_HOST || '').trim();
+  if (!envHost) return 'http://localhost:11434';
+  let url = envHost;
+  if (!/^https?:\/\//i.test(url)) {
+    url = 'http://' + url;
+  }
+  url = url.replace(/\/\/0\.0\.0\.0/, '//127.0.0.1').replace(/\/+$/, '');
+  if (!/:\d+$/.test(url)) {
+    url += ':11434';
+  }
+  return url;
+}
+
+function getWinOllamaPaths() {
+  const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+  const dir = path.join(localAppData, 'Programs', 'Ollama');
+  return {
+    dir,
+    cliExe: path.join(dir, 'ollama.exe'),
+    appExe: path.join(dir, 'Ollama app.exe')
+  };
+}
+
+function checkIsOllamaInstalled() {
+  return new Promise((resolve) => {
+    if (process.platform === 'win32') {
+      const { cliExe, appExe } = getWinOllamaPaths();
+      if (fs.existsSync(cliExe) || fs.existsSync(appExe)) {
+        return resolve(true);
+      }
+      exec('where ollama', { windowsHide: true }, (err) => {
+        resolve(!err);
+      });
+    } else {
+      exec('which ollama', (err) => {
+        resolve(!err);
+      });
+    }
+  });
+}
+
+async function pingOllamaServer(endpoint) {
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 1500);
+    const res = await fetch(`${endpoint}/api/tags`, { signal: controller.signal });
+    clearTimeout(t);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+function stopOllamaProcessesSyncOrAsync(endpoint, wait = true) {
+  return new Promise(async (resolve) => {
+    // First attempt to unload any running models from RAM/VRAM cleanly
+    try {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 1200);
+      const psRes = await fetch(`${endpoint}/api/ps`, { signal: controller.signal });
+      clearTimeout(t);
+      if (psRes.ok) {
+        const psData = await psRes.json();
+        const models = Array.isArray(psData?.models) ? psData.models : [];
+        for (const m of models) {
+          const mName = typeof m === 'string' ? m : (m?.name || m?.model);
+          if (mName) {
+            await fetch(`${endpoint}/api/generate`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ model: mName, keep_alive: 0 })
+            }).catch(() => {});
+          }
+        }
+      }
+    } catch {}
+
+    const killCmd = process.platform === 'win32'
+      ? 'taskkill /F /IM "Ollama app.exe" /T >nul 2>nul & taskkill /F /IM "ollama.exe" /T >nul 2>nul'
+      : 'pkill -f "ollama"';
+
+    if (!wait) {
+      exec(killCmd, { windowsHide: true });
+      return resolve({ status: 'stopped' });
+    }
+
+    exec(killCmd, { windowsHide: true }, async () => {
+      for (let i = 0; i < 15; i++) {
+        const alive = await pingOllamaServer(endpoint);
+        if (!alive) break;
+        await new Promise(r => setTimeout(r, 250));
+      }
+      resolve({ status: 'stopped' });
+    });
+  });
+}
+
+ipcMain.handle('get-ollama-host', async () => {
+  return resolveOllamaEndpoint();
+});
+
+ipcMain.handle('check-ollama-installed', async () => {
+  const installed = await checkIsOllamaInstalled();
+  return { installed, endpoint: resolveOllamaEndpoint() };
+});
+
+ipcMain.handle('start-ollama', async () => {
+  const endpoint = resolveOllamaEndpoint();
+  const alreadyUp = await pingOllamaServer(endpoint);
+  if (alreadyUp) {
+    return { status: 'running', endpoint };
+  }
+
+  let isInstalled = await checkIsOllamaInstalled();
+
+  // If not installed on Windows, install automatically via Winget
+  if (!isInstalled && process.platform === 'win32') {
+    const installSuccess = await new Promise((resolve) => {
+      exec(
+        'winget install -e --id Ollama.Ollama --accept-source-agreements --accept-package-agreements',
+        { windowsHide: true, timeout: 300000 },
+        (err) => {
+          const { dir } = getWinOllamaPaths();
+          if (process.env.PATH && !process.env.PATH.includes(dir)) {
+            process.env.PATH = `${process.env.PATH};${dir}`;
+          }
+          resolve(!err);
+        }
+      );
+    });
+
+    isInstalled = installSuccess || (await checkIsOllamaInstalled());
+    if (!isInstalled) {
+      return {
+        status: 'error',
+        message: 'Ollama is not installed and automatic Winget installation failed. Please install Ollama from ollama.com.'
+      };
+    }
+  } else if (!isInstalled) {
+    return {
+      status: 'error',
+      message: 'Ollama is not installed on this system. Please install it from ollama.com.'
+    };
+  }
+
+  // Launch Ollama background server
+  try {
+    if (process.platform === 'win32') {
+      const { cliExe, appExe, dir } = getWinOllamaPaths();
+      if (process.env.PATH && !process.env.PATH.includes(dir)) {
+        process.env.PATH = `${process.env.PATH};${dir}`;
+      }
+      if (fs.existsSync(cliExe)) {
+        const child = spawn(cliExe, ['serve'], {
+          windowsHide: true,
+          detached: true,
+          stdio: 'ignore'
+        });
+        child.unref();
+      } else if (fs.existsSync(appExe)) {
+        const child = spawn(appExe, [], {
+          windowsHide: true,
+          detached: true,
+          stdio: 'ignore'
+        });
+        child.unref();
+      } else {
+        const child = spawn('ollama', ['serve'], {
+          windowsHide: true,
+          detached: true,
+          stdio: 'ignore',
+          shell: true
+        });
+        child.unref();
+      }
+    } else {
+      const child = spawn('ollama', ['serve'], {
+        detached: true,
+        stdio: 'ignore'
+      });
+      child.unref();
+    }
+  } catch (e) {
+    return { status: 'error', message: e.message || 'Failed to launch Ollama process.' };
+  }
+
+  // Poll until the HTTP server responds
+  for (let i = 0; i < 45; i++) {
+    const up = await pingOllamaServer(endpoint);
+    if (up) {
+      return { status: 'running', endpoint };
+    }
+    await new Promise(r => setTimeout(r, 350));
+  }
+
+  return { status: 'error', message: 'Timed out waiting for Ollama server to start.' };
+});
+
+ipcMain.handle('stop-ollama', async () => {
+  const endpoint = resolveOllamaEndpoint();
+  return await stopOllamaProcessesSyncOrAsync(endpoint, true);
+});
+
+ipcMain.handle('fetch-ollama-catalog', async () => {
+  try {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch('https://ollama.com/api/tags', { signal: controller.signal });
+    clearTimeout(t);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data?.models)) {
+        return {
+          status: 'ok',
+          models: data.models.map(m => m.name || m.model).filter(Boolean)
+        };
+      }
+    }
+  } catch {}
+  return { status: 'offline', models: [] };
+});
+
+// ---------------- INTERACTIVE TERMINAL SESSION BRIDGE ----------------
 let activeSessionDir = null;
 let activeSessionElevated = false;
 let activeSessionShell = 'PowerShell';
@@ -356,9 +585,15 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => {
   cleanupSession();
+  if (latestSavedSettings?.stopOllamaOnExit) {
+    stopOllamaProcessesSyncOrAsync(resolveOllamaEndpoint(), false);
+  }
 });
 
 app.on('window-all-closed', () => {
   cleanupSession();
+  if (latestSavedSettings?.stopOllamaOnExit) {
+    stopOllamaProcessesSyncOrAsync(resolveOllamaEndpoint(), false);
+  }
   if (process.platform !== 'darwin') app.quit();
 });

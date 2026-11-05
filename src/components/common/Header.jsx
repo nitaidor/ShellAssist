@@ -29,8 +29,8 @@ export const Header = ({ isDarkMode, settings, apiStatus, showMenu, setShowMenu,
     if (p === 'openai') return { label: 'ChatGPT', model: settings.openaiModel || 'gpt-4o-mini', hasKey: !!(settings.openaiApiKey || (typeof window !== 'undefined' && localStorage.getItem('BYOK_OPENAI_KEY'))) };
     if (p === 'claude') return { label: 'Claude', model: settings.claudeModel || 'claude-3-5-sonnet', hasKey: !!(settings.claudeApiKey || (typeof window !== 'undefined' && localStorage.getItem('BYOK_CLAUDE_KEY'))) };
     
-    const hasSavedOllama = Array.isArray(settings.savedLocalConfigs) && settings.savedLocalConfigs.length > 0 && !!settings.localEndpoint && !!settings.localModel;
-    return { label: 'Ollama', model: settings.localModel || 'gemma2', hasKey: hasSavedOllama };
+    // Ollama does not use an API key; status is determined by whether Ollama & a model are running
+    return { label: 'Ollama', model: settings.localModel || 'gemma4:e4b', hasKey: true };
   };
 
   const renderBadge = () => {
@@ -50,7 +50,7 @@ export const Header = ({ isDarkMode, settings, apiStatus, showMenu, setShowMenu,
         </span>
       );
     }
-    if (apiStatus === 'invalid') {
+    if (apiStatus === 'invalid' || apiStatus === 'missing') {
       return (
         <span className="px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider rounded border flex items-center gap-1.5 status-badge-error shadow-sm leading-none w-fit mb-[2px]">
           <XCircle className="w-3 h-3" /> {settings.apiProvider === 'ollama' ? 'Local AI Offline' : 'Wrong API Key'}

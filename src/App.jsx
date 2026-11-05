@@ -26,7 +26,7 @@ import {
   validateGeminiKey,
   validateOpenaiKey,
   validateClaudeKey,
-  validateOllamaEndpoint,
+  getOllamaActiveState,
   MODEL
 } from './services/gemini';
 import './styles/themes.css';
@@ -87,9 +87,6 @@ export default function App() {
       ? persisted.current.settings.savedGeminiKeys 
       : (initialKey ? [initialKey] : []);
 
-    const savedLocalConfigs = persisted.current?.settings?.savedLocalConfigs || [];
-    const hasSavedLocal = Array.isArray(savedLocalConfigs) && savedLocalConfigs.length > 0;
-
     return {
       apiProvider: 'gemini',
       apiKey: initialKey,
@@ -106,12 +103,23 @@ export default function App() {
       darkTheme: 'default',
       lightTheme: 'default',
       clockFormat: '12h',
+      stopOllamaOnExit: false,
       ...(persisted.current?.settings || {}),
-      savedLocalConfigs,
-      localEndpoint: hasSavedLocal ? (persisted.current?.settings?.localEndpoint || savedLocalConfigs[0].endpoint) : '',
-      localModel: hasSavedLocal ? (persisted.current?.settings?.localModel || savedLocalConfigs[0].model) : ''
+      localEndpoint: persisted.current?.settings?.localEndpoint || 'http://localhost:11434',
+      localModel: persisted.current?.settings?.localModel || 'gemma4:e4b'
     };
   });
+
+  // Sync system OLLAMA_HOST environment variable if set outside ShellAssist
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.getOllamaHost === 'function') {
+      window.electronAPI.getOllamaHost().then((resolvedHost) => {
+        if (resolvedHost && resolvedHost !== settings.localEndpoint) {
+          setSettings(prev => ({ ...prev, localEndpoint: resolvedHost }));
+        }
+      }).catch(() => {});
+    }
+  }, []);
 
   // Calculate and mount theme class directly onto <html> root element & update Electron native menu
   useEffect(() => {
@@ -160,13 +168,18 @@ export default function App() {
           const ok = await validateClaudeKey(key);
           if (active) setApiStatus(ok ? 'valid' : 'invalid');
         } else if (provider === 'ollama') {
-          const hasSaved = Array.isArray(settings.savedLocalConfigs) && settings.savedLocalConfigs.length > 0;
-          const end = (settings.localEndpoint || '').trim();
-          const mod = (settings.localModel || '').trim();
-          if (!hasSaved || !end || !mod) { if (active) setApiStatus('missing'); return; }
+          const end = (settings.localEndpoint || 'http://localhost:11434').trim();
           if (active) setApiStatus('checking');
-          const ok = await validateOllamaEndpoint(end);
-          if (active) setApiStatus(ok ? 'valid' : 'invalid');
+          const state = await getOllamaActiveState(end);
+          if (!active) return;
+          if (state.serverRunning && state.runningModel) {
+            setApiStatus('valid');
+            if (state.runningModel !== settings.localModel) {
+              setSettings(prev => ({ ...prev, localModel: state.runningModel }));
+            }
+          } else {
+            setApiStatus('invalid');
+          }
         }
       } catch (e) {
         if (active) setApiStatus('invalid');
@@ -174,7 +187,7 @@ export default function App() {
     };
     checkStatus();
     return () => { active = false; };
-  }, [settings.apiProvider, settings.apiKey, settings.geminiApiKey, settings.openaiApiKey, settings.claudeApiKey, settings.localEndpoint, settings.localModel, settings.savedLocalConfigs]);
+  }, [settings.apiProvider, settings.apiKey, settings.geminiApiKey, settings.openaiApiKey, settings.claudeApiKey, settings.localEndpoint, settings.localModel]);
 
   // Host OS & Desktop Detection
   const isDesktopEnv = typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.runCommand === 'function';
@@ -1215,6 +1228,7 @@ export default function App() {
           settings={settings}
           setSettings={setSettings}
           apiStatus={apiStatus}
+          setApiStatus={setApiStatus}
           isDarkMode={isDarkMode}
           setIsDarkMode={setIsDarkMode}
           onToggleTerminalIntegration={handleToggleTerminalIntegration}
