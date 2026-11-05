@@ -14,6 +14,10 @@ export const Header = ({ isDarkMode, settings, apiStatus, showMenu, setShowMenu,
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [setShowMenu]);
 
+  const isDefaultTheme = isDarkMode
+    ? (settings.darkTheme !== 'green' && settings.darkTheme !== 'red')
+    : (settings.lightTheme !== 'monochrome');
+
   const getProviderInfo = () => {
     const p = settings.apiProvider || 'gemini';
     const hasGeminiKey = !!(
@@ -66,7 +70,7 @@ export const Header = ({ isDarkMode, settings, apiStatus, showMenu, setShowMenu,
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 256 256"
-          className="w-10 h-10 header-logo shrink-0"
+          className={`w-10 h-10 shrink-0 ${!isDefaultTheme ? 'header-logo' : ''}`}
           fill="none"
           aria-hidden="true"
         >
@@ -76,13 +80,13 @@ export const Header = ({ isDarkMode, settings, apiStatus, showMenu, setShowMenu,
             width="192"
             height="192"
             rx="22"
-            fill="none"
-            stroke="currentColor"
+            fill={isDefaultTheme ? 'black' : 'none'}
+            stroke={isDefaultTheme ? '#3b82f6' : 'currentColor'}
             strokeWidth="16"
           />
           <path
             d="M 76 84 L 118 128 L 76 172 M 138 172 L 186 172"
-            stroke="currentColor"
+            stroke={isDefaultTheme ? '#3b82f6' : 'currentColor'}
             strokeWidth="16"
             strokeLinecap="round"
             strokeLinejoin="round"

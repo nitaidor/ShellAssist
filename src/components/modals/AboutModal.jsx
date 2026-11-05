@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
 import { X, ExternalLink, Github } from 'lucide-react';
-import appIcon from '../../../assets/icon.ico';
 import { version } from '../../../package.json';
 
 export const AboutModal = ({ isOpen, onClose }) => {
@@ -13,6 +12,14 @@ export const AboutModal = ({ isOpen, onClose }) => {
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
+
+  const root = typeof document !== 'undefined' ? document.documentElement : null;
+  const isSpecialTheme = root && (
+    root.classList.contains('theme-terminal-green') ||
+    root.classList.contains('theme-terminal-red') ||
+    root.classList.contains('theme-monochrome')
+  );
+  const isDefaultTheme = !isSpecialTheme;
 
   return (
     <div
@@ -32,12 +39,34 @@ export const AboutModal = ({ isOpen, onClose }) => {
           <X className="w-4 h-4" />
         </button>
 
-        {/* Solid App Logo (No glow, no badge) */}
-        <img
-          src={appIcon}
-          alt="ShellAssist Logo"
-          className="w-16 h-16 rounded-xl mx-auto mb-3 object-contain"
-        />
+        {/* App Logo (Matches Header SVG behavior across all 5 themes) */}
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 256 256"
+          className={`w-16 h-16 mx-auto mb-3 ${!isDefaultTheme ? 'header-logo' : ''}`}
+          fill="none"
+          role="img"
+          aria-label="ShellAssist Logo"
+        >
+          <rect
+            x="32"
+            y="32"
+            width="192"
+            height="192"
+            rx="22"
+            fill={isDefaultTheme ? 'black' : 'none'}
+            stroke={isDefaultTheme ? '#3b82f6' : 'currentColor'}
+            strokeWidth="16"
+          />
+          <path
+            d="M 76 84 L 118 128 L 76 172 M 138 172 L 186 172"
+            stroke={isDefaultTheme ? '#3b82f6' : 'currentColor'}
+            strokeWidth="16"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+        </svg>
 
         <h2 className="text-xl font-bold text-white tracking-tight">ShellAssist</h2>
         <p className="text-xs font-mono text-gray-400 mt-0.5">Version {version}</p>
