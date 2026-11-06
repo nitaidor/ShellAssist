@@ -48,7 +48,7 @@ export const HelpModal = ({ isOpen, onClose }) => {
               <div className="bg-[#0d1117] border border-[#30363d] p-4 rounded-md shadow-sm">
                 <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Key Features</h4>
                 <ul className="text-sm text-gray-300 space-y-3 list-disc list-inside">
-                  <li><strong>Interactive Tokens & Full Breakdown:</strong> Hover over any part of the code to inspect what it does. For large scripts where only the beginning is annotated initially (to conserve your API token quota and keep generation fast), click <strong>Full Breakdown Available</strong> to run a complete token-by-token breakdown of the entire script.</li>
+                  <li><strong>Interactive Tokens & Full Breakdown:</strong> Hover over any part of the code to inspect what it does. For large scripts or when using lightweight local models where only part of the code is annotated initially (to conserve your API token quota and keep generation fast), click <strong>Full Breakdown Available</strong> to run a complete token-by-token breakdown of the entire script.</li>
                   <li><strong>Risk Assessment & Alternatives:</strong> Click the <strong>Risk</strong> badge on any generated result to review potential system impact and elevation requirements, or click <strong>View Alternative</strong> to see alternative commands or GUI methods for the task.</li>
                   <li><strong>Copy, Download & Run:</strong> Single-line <strong>Commands</strong> can be copied or executed immediately via <strong>Run</strong>, while multi-line <strong>Scripts</strong> can be copied or saved as a file via <strong>Download</strong>.</li>
                   <li><strong>Inline Command Debugger:</strong> Each generated turn includes a <strong>Command Debugger</strong> panel at the bottom of the card (which auto-populates if a <strong>Run</strong> action returns an error) so you can troubleshoot issues in place.</li>
@@ -83,7 +83,7 @@ export const HelpModal = ({ isOpen, onClose }) => {
             </p>
             <ul className="text-sm text-gray-300 space-y-3 list-disc list-inside">
               <li><strong>Paste Code or Upload Script:</strong> Either paste raw code into the editor or click the <strong>Upload Script</strong> button to attach a script file.</li>
-              <li><strong>Inspection & Actions:</strong> Instantly provides an overall explanation, interactive token breakdown (with <strong>Full Breakdown Available</strong> for large scripts), risk assessment, and alternative commands or GUI methods. Analyzed commands provide <strong>Copy</strong> and <strong>Run</strong> buttons, while scripts provide <strong>Copy</strong> and <strong>Download</strong> buttons.</li>
+              <li><strong>Inspection & Actions:</strong> Instantly provides an overall explanation, interactive token breakdown (with <strong>Full Breakdown Available</strong> for large scripts or lightweight local models), risk assessment, and alternative commands or GUI methods. Analyzed commands provide <strong>Copy</strong> and <strong>Run</strong> buttons, while scripts provide <strong>Copy</strong> and <strong>Download</strong> buttons.</li>
             </ul>
           </section>
 

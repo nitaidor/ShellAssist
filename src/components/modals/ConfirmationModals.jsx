@@ -117,17 +117,17 @@ export const DeepTokenBreakdownModal = ({ isOpen, isLoading, onClose, onConfirmD
       >
         <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
           <Sparkles className="w-5 h-5 theme-prompt-arrow shrink-0" />
-          Large Script Token Breakdown
+          Full Token Breakdown
         </h3>
         <p className="text-gray-300 text-sm mb-3 leading-relaxed">
-          This script contains many statements. Because generating token explanations alongside code requires substantial response data, the AI only annotated the <strong>beginning of the script</strong> before reaching its output limit.
+          Because generating detailed token explanations alongside code requires substantial response data (especially for large scripts or when using lightweight local models), the AI only annotated <strong>part of the code</strong> during the initial pass.
         </p>
         <div className="p-3 rounded-md text-xs mb-5 leading-relaxed modal-warning-panel space-y-1.5">
           <p>
-            • <strong>Keep as-is:</strong> View, copy, run, or download the 100% complete script now. The tail end will have basic syntax tags instead of line-by-line notes.
+            • <strong>Keep as-is:</strong> View, copy, run, or download the 100% complete code now. Unannotated parts will have basic syntax tags instead of detailed notes.
           </p>
           <p>
-            • <strong>Full Deep Breakdown:</strong> Sends a dedicated secondary analysis pass to annotate the rest of the script line-by-line. <em>(Note: This consumes additional API tokens from your provider quota).</em>
+            • <strong>Full Deep Breakdown:</strong> Sends a dedicated secondary analysis pass to annotate the rest of the code token-by-token. <em>(Note: When using cloud providers, this consumes additional API tokens from your quota).</em>
           </p>
         </div>
         <div className="flex justify-end gap-3 flex-wrap">
@@ -147,7 +147,7 @@ export const DeepTokenBreakdownModal = ({ isOpen, isLoading, onClose, onConfirmD
           >
             {isLoading ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin" /> Annotating Full Script...
+                <Loader2 className="w-4 h-4 animate-spin" /> Annotating Full Code...
               </>
             ) : (
               <>
