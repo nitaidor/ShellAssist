@@ -317,16 +317,11 @@ ipcMain.handle('fetch-ollama-catalog', async () => {
           modelName === 'bge-m3';
         if (isEmbedding) continue;
 
-        // Match x-test-size badges, or fallback to spans that do NOT have x-test-pull-count
-        const sizeMatches = [...block.matchAll(/<span[^>]*x-test-size[^>]*>\s*([^<\s]+)\s*<\/span>/gi)].map(m => m[1].toLowerCase());
-        let sizes = sizeMatches;
-
-        if (sizes.length === 0) {
-          const fallbackMatches = [
-            ...block.matchAll(/<span(?![^>]*x-test-pull-count)(?![^>]*x-test-capability)[^>]*>\s*((?:e?\d+(?:\.\d+)?[bm]|\d+x\d+(?:\.\d+)?[bm]))\s*<\/span>/gi)
-          ].map(m => m[1].toLowerCase());
-          sizes = fallbackMatches;
-        }
+        // Match lowercase size badges (e.g. e2b, e4b, 12b, 270m, 1.5m, 8x7b).
+        // Case-sensitive (/g without i) so uppercase pull counts like "28.7M" are never matched.
+        const sizes = [
+          ...block.matchAll(/<span(?![^>]*pull-count)(?![^>]*capability)[^>]*>\s*((?:e?\d+(?:\.\d+)?[bm]|\d+x\d+(?:\.\d+)?[bm]))\s*<\/span>/g)
+        ].map(m => m[1]);
 
         if (sizes.length > 0) {
           for (const sz of sizes) {
