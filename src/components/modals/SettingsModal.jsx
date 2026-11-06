@@ -184,18 +184,44 @@ export const SettingsModal = ({
     const target = modelTag.toLowerCase();
     return list.some((inst) => {
       const lowerInst = inst.toLowerCase();
-      return lowerInst === target || lowerInst === `${target}:latest` || `${lowerInst}:latest` === target;
+      return lowerInst === target;
     });
   };
 
   // Build families & models dynamically from web catalog + locally installed models
   const buildDynamicCatalog = () => {
     const grouped = {};
+    const allRawTags = [...onlineCatalogModels, ...installedModels, ...(runningModel ? [runningModel] : [])];
+
+    // Identify which base models have explicit size tags (e.g. gemma4 has e2b, e4b, 12b, etc.)
+    const basesWithExplicitSizes = new Set();
+    allRawTags.forEach((t) => {
+      if (!t || typeof t !== 'string') return;
+      const [base, sz] = t.trim().toLowerCase().split(':');
+      if (base && sz && sz !== 'latest' && !/\.\d+m$/i.test(sz)) {
+        basesWithExplicitSizes.add(base);
+      }
+    });
 
     const addTag = (rawTag) => {
       if (!rawTag || typeof rawTag !== 'string') return;
       const cleanTag = rawTag.trim();
       if (!cleanTag) return;
+      const [base, sz = 'latest'] = cleanTag.toLowerCase().split(':');
+
+      // Filter out any decimal-million pull counts (e.g. 28.6m)
+      if (/\.\d+m$/i.test(sz)) return;
+
+      // Filter out redundant ":latest" duplicate if this model already has explicit size tags
+      // (unless ":latest" is the currently running model)
+      if (
+        sz === 'latest' &&
+        basesWithExplicitSizes.has(base) &&
+        (!runningModel || runningModel.toLowerCase() !== cleanTag.toLowerCase())
+      ) {
+        return;
+      }
+
       const fam = inferFamilyForModel(cleanTag);
       if (!grouped[fam]) grouped[fam] = [];
       const exists = grouped[fam].some((m) => m.value.toLowerCase() === cleanTag.toLowerCase());
@@ -207,7 +233,6 @@ export const SettingsModal = ({
       }
     };
 
-    // Add installed and running models first, then all web catalog models
     installedModels.forEach(addTag);
     if (runningModel) addTag(runningModel);
     onlineCatalogModels.forEach(addTag);
@@ -261,10 +286,7 @@ export const SettingsModal = ({
       return;
     }
     const isRunningMatch = (m) =>
-      runningModel &&
-      (m.toLowerCase() === runningModel.toLowerCase() ||
-        m.toLowerCase() === `${runningModel.toLowerCase()}:latest` ||
-        `${m.toLowerCase()}:latest` === runningModel.toLowerCase());
+      runningModel && m.toLowerCase() === runningModel.toLowerCase();
 
     const currentValid = installedModels.some(
       (m) => m === selectedUninstallModel && !isRunningMatch(m)
@@ -628,9 +650,7 @@ export const SettingsModal = ({
 
     const isTargetRunning =
       runningModel &&
-      (selectedUninstallModel.toLowerCase() === runningModel.toLowerCase() ||
-        selectedUninstallModel.toLowerCase() === `${runningModel.toLowerCase()}:latest` ||
-        `${selectedUninstallModel.toLowerCase()}:latest` === runningModel.toLowerCase());
+      selectedUninstallModel.toLowerCase() === runningModel.toLowerCase();
 
     if (isTargetRunning) return;
 
@@ -833,9 +853,7 @@ export const SettingsModal = ({
       ).map((m) => {
         const isCurrentlyRunning =
           Boolean(runningModel) &&
-          (m.value.toLowerCase() === runningModel.toLowerCase() ||
-            m.value.toLowerCase() === `${runningModel.toLowerCase()}:latest` ||
-            `${m.value.toLowerCase()}:latest` === runningModel.toLowerCase());
+          m.value.toLowerCase() === runningModel.toLowerCase();
         return {
           value: m.value,
           label: m.label,
@@ -848,9 +866,7 @@ export const SettingsModal = ({
   const isSelectedUninstallRunning =
     Boolean(runningModel) &&
     Boolean(selectedUninstallModel) &&
-    (selectedUninstallModel.toLowerCase() === runningModel.toLowerCase() ||
-      selectedUninstallModel.toLowerCase() === `${runningModel.toLowerCase()}:latest` ||
-      `${selectedUninstallModel.toLowerCase()}:latest` === runningModel.toLowerCase());
+    selectedUninstallModel.toLowerCase() === runningModel.toLowerCase();
 
   const canUninstallSelected =
     isOllamaRunning &&
@@ -1185,7 +1201,7 @@ export const SettingsModal = ({
                 {/* Row 3: Uninstall Installed Model (Running model is grayed out and locked) */}
                 <div className="pt-3 border-t border-[#30363d]">
                   <label className="block text-xs font-medium text-gray-400 mb-2">
-                    Manage Installed Models <span className="text-[11px] text-gray-500 font-normal">(Running models are locked and cannot be uninstalled)</span>
+                    Manage Installed Models
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
                     <div className="sm:col-span-8">

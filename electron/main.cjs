@@ -269,7 +269,7 @@ ipcMain.handle('stop-ollama', async () => {
   return await stopOllamaProcessesSyncOrAsync(endpoint, true);
 });
 
-// Fetches live supported models and their size tags directly from https://ollama.com/library
+// Fetches live supported models and their exact size tags directly from https://ollama.com/library
 ipcMain.handle('fetch-ollama-catalog', async () => {
   try {
     const controller = new AbortController();
@@ -297,11 +297,16 @@ ipcMain.handle('fetch-ollama-catalog', async () => {
           modelName === 'bge-m3';
         if (isEmbedding) continue;
 
-        // Extract all parameter size tags listed on the model card (e.g., e2b, e4b, 4b, 12b, 8x7b, 270m)
+        // 1. Primary extraction: match explicit x-test-size badges
         const sizeMatches = [...block.matchAll(/x-test-size[^>]*>\s*([a-z0-9.]+)\s*</gi)].map(m => m[1].toLowerCase());
         let sizes = sizeMatches;
+
+        // 2. Fallback extraction: strictly exclude x-test-pull-count and only match lowercase size tags
+        // (whole integer millions like 270m, or billions like e2b, e4b, 1.5b, 12b, 8x7b)
         if (sizes.length === 0) {
-          const fallbackMatches = [...block.matchAll(/<span[^>]*>\s*((?:e?\d+(?:\.\d+)?[bm]|\d+x\d+(?:\.\d+)?[bm]))\s*<\/span>/gi)].map(m => m[1].toLowerCase());
+          const fallbackMatches = [
+            ...block.matchAll(/<span(?![^>]*pull-count)[^>]*>\s*((?:e?\d+(?:\.\d+)?b|\d+x\d+(?:\.\d+)?b|\d{2,3}m))\s*<\/span>/g)
+          ].map(m => m[1].toLowerCase());
           sizes = fallbackMatches;
         }
 

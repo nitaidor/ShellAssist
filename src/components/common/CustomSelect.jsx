@@ -70,15 +70,15 @@ export const CustomSelect = ({
                     : 'font-medium hover:bg-[#30363d]'
                 }`}
               >
-                <span className="truncate">{optLabel}</span>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="truncate">{optLabel}</span>
                   {optBadge && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider saved-item-badge">
+                    <span className="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider saved-item-badge shrink-0">
                       {optBadge}
                     </span>
                   )}
-                  {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
                 </div>
+                {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
               </button>
             );
           })}
