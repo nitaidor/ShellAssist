@@ -300,7 +300,7 @@ export const InteractiveCommand = ({
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setShowDeepModal(true); }}
                 className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider btn-deep-token-badge flex items-center gap-1"
-                title="Only the start of this script was annotated. Click to generate full deep breakdown."
+                title="Only part of this code was annotated. Click to generate full deep breakdown."
               >
                 <Sparkles className="w-2.5 h-2.5" /> Full Breakdown Available
               </button>
@@ -317,7 +317,7 @@ export const InteractiveCommand = ({
             <div className="py-4 flex flex-col items-center justify-center text-gray-400 gap-3">
               <div className="flex items-center gap-2">
                 <Loader2 className="w-5 h-5 animate-spin theme-spinner" />
-                <p className="text-xs font-mono">Annotating full script line-by-line...</p>
+                <p className="text-xs font-mono">Annotating full code...</p>
               </div>
               <button
                 type="button"
@@ -365,7 +365,7 @@ export const InteractiveCommand = ({
                   onClick={() => setShowDeepModal(true)}
                   className="px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wider btn-deep-token-badge flex items-center gap-1.5 mt-1"
                 >
-                  <Sparkles className="w-3.5 h-3.5" /> Full Breakdown Available for this Script
+                  <Sparkles className="w-3.5 h-3.5" /> Full Breakdown Available
                 </button>
               )}
             </div>
