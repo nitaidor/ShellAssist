@@ -122,7 +122,7 @@ const extractParamSizeBillions = (sizeTag = '') => {
   return 0.001;
 };
 
-// Sorts models so stronger/newer models appear on top:
+// Sorts models strictly in natural hierarchy:
 // 1. Newer model generation first (e.g. Gemma 4 above Gemma 3)
 // 2. Larger parameter size first within the same model (e.g. 31B -> 26B -> 12B -> E4B -> E2B)
 const sortModelsList = (models = []) => {
@@ -139,7 +139,7 @@ const sortModelsList = (models = []) => {
 
     const paramsA = extractParamSizeBillions(sizeA);
     const paramsB = extractParamSizeBillions(sizeB);
-    if (paramsA !== paramsB) return paramsB - paramsA; // Stronger/larger parameter size on top (E4B above E2B)
+    if (paramsA !== paramsB) return paramsB - paramsA; // Larger parameter size on top (31B -> 26B -> 12B -> E4B -> E2B)
     return sizeB.localeCompare(sizeA);
   });
 };
@@ -198,7 +198,7 @@ export const SettingsModal = ({
     allRawTags.forEach((t) => {
       if (!t || typeof t !== 'string') return;
       const [base, sz] = t.trim().toLowerCase().split(':');
-      if (base && sz && sz !== 'latest' && !/\.\d+m$/i.test(sz)) {
+      if (base && sz && sz !== 'latest') {
         basesWithExplicitSizes.add(base);
       }
     });
@@ -208,9 +208,6 @@ export const SettingsModal = ({
       const cleanTag = rawTag.trim();
       if (!cleanTag) return;
       const [base, sz = 'latest'] = cleanTag.toLowerCase().split(':');
-
-      // Filter out any decimal-million pull counts (e.g. 28.6m)
-      if (/\.\d+m$/i.test(sz)) return;
 
       // Filter out redundant ":latest" duplicate if this model already has explicit size tags
       // (unless ":latest" is the currently running model)
@@ -248,9 +245,25 @@ export const SettingsModal = ({
   };
 
   const dynamicCatalog = buildDynamicCatalog();
-  const familyOptions = Object.keys(dynamicCatalog).length > 0
-    ? Object.keys(dynamicCatalog)
-    : [selectedFamily || 'Gemma'];
+
+  // Build Model Family dropdown options with "<x> Installed" badges
+  const familyOptions = (() => {
+    const families = Object.keys(dynamicCatalog);
+    if (families.length === 0) {
+      return [{ value: selectedFamily || 'Gemma', label: selectedFamily || 'Gemma', badge: null }];
+    }
+
+    return families.map((fam) => {
+      const count = isOllamaRunning
+        ? (dynamicCatalog[fam] || []).filter((m) => isModelInstalled(m.value)).length
+        : 0;
+      return {
+        value: fam,
+        label: fam,
+        badge: count > 0 ? `${count} Installed` : null
+      };
+    });
+  })();
 
   const getShortModelLabel = (modelTag) => {
     if (!modelTag) return 'Model';
@@ -374,9 +387,16 @@ export const SettingsModal = ({
       if (currentProvider === 'ollama' && setApiStatus) setApiStatus('valid');
     } else {
       setRunningModel('');
-      const targetModel = selectedModel || settings?.localModel || detectedInstalled[0] || 'gemma4:e4b';
-      const isInst = isModelInstalled(targetModel, detectedInstalled);
-      setStatusMessage(isInst ? `Ready (${targetModel} is installed)` : `${targetModel} is not installed`);
+      // Select the best installed model by default so the dropdown auto-scrolls directly to it
+      const sortedDetected = sortModelsList(
+        detectedInstalled.filter((t) => !t.toLowerCase().endsWith(':latest')).map((t) => ({ value: t, label: t }))
+      );
+      const bestDefault = sortedDetected[0]?.value || detectedInstalled[0] || selectedModel || settings?.localModel || 'gemma4:e4b';
+      const fam = inferFamilyForModel(bestDefault);
+      setSelectedFamily(fam);
+      setSelectedModel(bestDefault);
+      const isInst = isModelInstalled(bestDefault, detectedInstalled);
+      setStatusMessage(isInst ? `Ready (${bestDefault} is installed)` : `${bestDefault} is not installed`);
       if (currentProvider === 'ollama' && setApiStatus) setApiStatus('invalid');
     }
   };
@@ -472,6 +492,7 @@ export const SettingsModal = ({
     setSelectedFamily(newFamily);
     const modelsInFamily = dynamicCatalog[newFamily] || [];
     if (modelsInFamily.length > 0) {
+      // Auto-select the best installed model in this family so the dropdown auto-scrolls to it when opened
       const firstInstalled = modelsInFamily.find((m) => isModelInstalled(m.value));
       setSelectedModel(firstInstalled ? firstInstalled.value : modelsInFamily[0].value);
     }

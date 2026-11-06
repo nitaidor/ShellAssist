@@ -11,6 +11,8 @@ export const CustomSelect = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const menuListRef = useRef(null);
+  const selectedItemRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -19,6 +21,13 @@ export const CustomSelect = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Auto-scroll the dropdown menu when opened so the selected / best installed model sits at the top of the view
+  useEffect(() => {
+    if (isOpen && menuListRef.current && selectedItemRef.current) {
+      menuListRef.current.scrollTop = Math.max(0, selectedItemRef.current.offsetTop - 4);
+    }
+  }, [isOpen]);
 
   const getOptionValue = (opt) => (typeof opt === 'object' && opt !== null ? opt.value : opt);
   const getOptionLabel = (opt) => (typeof opt === 'object' && opt !== null ? (opt.label ?? opt.value) : opt);
@@ -41,6 +50,7 @@ export const CustomSelect = ({
       </button>
       {isOpen && !disabled && (
         <div
+          ref={menuListRef}
           className={`absolute ${alignRight ? 'right-0' : 'left-0'} mt-1 min-w-full w-max max-w-[380px] max-h-60 overflow-y-auto bg-[#161b22] border border-[#30363d] rounded-md shadow-2xl z-[100] py-1 animate-in fade-in zoom-in-95 duration-100`}
         >
           {options.map((opt, idx) => {
@@ -54,6 +64,7 @@ export const CustomSelect = ({
             return (
               <button
                 key={optVal}
+                ref={isSelected ? selectedItemRef : null}
                 type="button"
                 disabled={optDisabled}
                 onClick={() => {

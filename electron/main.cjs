@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain, Menu, nativeTheme } = require('electron');
 const path = require('path');
-const { exec, spawn } = require('child_process');
+const { exec, execSync, spawn } = require('child_process');
 const os = require('os');
 const fs = require('fs');
 
@@ -119,9 +119,38 @@ async function pingOllamaServer(endpoint) {
   }
 }
 
-function stopOllamaProcessesSyncOrAsync(endpoint, wait = true) {
+// Synchronous process termination for app exit so Electron waits until Ollama is fully closed
+function killOllamaSync() {
+  if (process.platform === 'win32') {
+    try {
+      execSync('taskkill /F /IM "Ollama app.exe" /T', { windowsHide: true, stdio: 'ignore' });
+    } catch {}
+    try {
+      execSync('taskkill /F /IM "ollama.exe" /T', { windowsHide: true, stdio: 'ignore' });
+    } catch {}
+  } else {
+    try {
+      execSync('pkill -f "ollama"', { stdio: 'ignore' });
+    } catch {}
+  }
+}
+
+function shouldStopOllamaOnExit() {
+  if (latestSavedSettings && typeof latestSavedSettings.stopOllamaOnExit === 'boolean') {
+    return latestSavedSettings.stopOllamaOnExit;
+  }
+  try {
+    if (fs.existsSync(appDataFilePath)) {
+      const parsed = JSON.parse(fs.readFileSync(appDataFilePath, 'utf8'));
+      return Boolean(parsed?.settings?.stopOllamaOnExit);
+    }
+  } catch {}
+  return false;
+}
+
+function stopOllamaProcessesAsync(endpoint) {
   return new Promise(async (resolve) => {
-    // First attempt to unload any running models from RAM/VRAM cleanly
+    // Attempt to unload any running models from RAM/VRAM cleanly first
     try {
       const controller = new AbortController();
       const t = setTimeout(() => controller.abort(), 1200);
@@ -143,23 +172,14 @@ function stopOllamaProcessesSyncOrAsync(endpoint, wait = true) {
       }
     } catch {}
 
-    const killCmd = process.platform === 'win32'
-      ? 'taskkill /F /IM "Ollama app.exe" /T >nul 2>nul & taskkill /F /IM "ollama.exe" /T >nul 2>nul'
-      : 'pkill -f "ollama"';
+    killOllamaSync();
 
-    if (!wait) {
-      exec(killCmd, { windowsHide: true });
-      return resolve({ status: 'stopped' });
+    for (let i = 0; i < 15; i++) {
+      const alive = await pingOllamaServer(endpoint);
+      if (!alive) break;
+      await new Promise(r => setTimeout(r, 200));
     }
-
-    exec(killCmd, { windowsHide: true }, async () => {
-      for (let i = 0; i < 15; i++) {
-        const alive = await pingOllamaServer(endpoint);
-        if (!alive) break;
-        await new Promise(r => setTimeout(r, 250));
-      }
-      resolve({ status: 'stopped' });
-    });
+    resolve({ status: 'stopped' });
   });
 }
 
@@ -266,7 +286,7 @@ ipcMain.handle('start-ollama', async () => {
 
 ipcMain.handle('stop-ollama', async () => {
   const endpoint = resolveOllamaEndpoint();
-  return await stopOllamaProcessesSyncOrAsync(endpoint, true);
+  return await stopOllamaProcessesAsync(endpoint);
 });
 
 // Fetches live supported models and their exact size tags directly from https://ollama.com/library
@@ -297,15 +317,13 @@ ipcMain.handle('fetch-ollama-catalog', async () => {
           modelName === 'bge-m3';
         if (isEmbedding) continue;
 
-        // 1. Primary extraction: match explicit x-test-size badges
-        const sizeMatches = [...block.matchAll(/x-test-size[^>]*>\s*([a-z0-9.]+)\s*</gi)].map(m => m[1].toLowerCase());
+        // Match x-test-size badges, or fallback to spans that do NOT have x-test-pull-count
+        const sizeMatches = [...block.matchAll(/<span[^>]*x-test-size[^>]*>\s*([^<\s]+)\s*<\/span>/gi)].map(m => m[1].toLowerCase());
         let sizes = sizeMatches;
 
-        // 2. Fallback extraction: strictly exclude x-test-pull-count and only match lowercase size tags
-        // (whole integer millions like 270m, or billions like e2b, e4b, 1.5b, 12b, 8x7b)
         if (sizes.length === 0) {
           const fallbackMatches = [
-            ...block.matchAll(/<span(?![^>]*pull-count)[^>]*>\s*((?:e?\d+(?:\.\d+)?b|\d+x\d+(?:\.\d+)?b|\d{2,3}m))\s*<\/span>/g)
+            ...block.matchAll(/<span(?![^>]*x-test-pull-count)(?![^>]*x-test-capability)[^>]*>\s*((?:e?\d+(?:\.\d+)?[bm]|\d+x\d+(?:\.\d+)?[bm]))\s*<\/span>/gi)
           ].map(m => m[1].toLowerCase());
           sizes = fallbackMatches;
         }
@@ -632,15 +650,15 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => {
   cleanupSession();
-  if (latestSavedSettings?.stopOllamaOnExit) {
-    stopOllamaProcessesSyncOrAsync(resolveOllamaEndpoint(), false);
+  if (shouldStopOllamaOnExit()) {
+    killOllamaSync();
   }
 });
 
 app.on('window-all-closed', () => {
   cleanupSession();
-  if (latestSavedSettings?.stopOllamaOnExit) {
-    stopOllamaProcessesSyncOrAsync(resolveOllamaEndpoint(), false);
+  if (shouldStopOllamaOnExit()) {
+    killOllamaSync();
   }
   if (process.platform !== 'darwin') app.quit();
 });
