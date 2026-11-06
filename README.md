@@ -60,3 +60,4 @@ Distributed under the MIT License. See `LICENSE` for more information.
 * Frontend library by [React](https://react.dev) (MIT License).
 * UI framework by [Tailwind CSS](https://tailwindcss.com) (MIT License).
 * Icons by [Lucide](https://lucide.dev) (ISC License).
+* Local AI engine by [Ollama](https://ollama.com) (MIT License).
