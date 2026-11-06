@@ -289,8 +289,70 @@ ipcMain.handle('stop-ollama', async () => {
   return await stopOllamaProcessesAsync(endpoint);
 });
 
+// Matches a locally installed ":latest" model's 12-char digest hash (e.g. "009acb0d7fe1")
+// against https://ollama.com/library/<base> to find which numbered size tag it corresponds to
+async function resolveLatestModelTargetTag(baseName, digestHash = '') {
+  try {
+    const shortHash = (digestHash || '').trim().substring(0, 12).toLowerCase();
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 4500);
+    const res = await fetch(`https://ollama.com/library/${encodeURIComponent(baseName)}`, { signal: controller.signal });
+    clearTimeout(t);
+    if (!res.ok) return null;
+
+    const html = await res.text();
+    const escapedBase = baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const tagBlocks = html.split(new RegExp(`href="/library/${escapedBase}:`, 'i'));
+
+    let fallbackLatestBadgeTag = null;
+
+    for (let i = 1; i < tagBlocks.length; i++) {
+      const block = tagBlocks[i];
+      const tagMatch = block.match(/^([^"/?#\s]+)/);
+      if (!tagMatch) continue;
+      const szTag = tagMatch[1].trim().toLowerCase();
+      if (!szTag || szTag === 'latest' || szTag === 'cloud') continue;
+
+      // Only inspect the immediate row for this tag
+      const rowSlice = block.substring(0, 1200).toLowerCase();
+
+      // 1. Primary check: exact 12-character SHA-256 digest hash match (e.g. "009acb0d7fe1")
+      if (shortHash && shortHash.length >= 8 && rowSlice.includes(shortHash)) {
+        return `${baseName}:${szTag}`;
+      }
+
+      // 2. Fallback check: row marked with the "latest" pill badge on Ollama's model page
+      if (!fallbackLatestBadgeTag && />\s*latest\s*</i.test(rowSlice)) {
+        fallbackLatestBadgeTag = `${baseName}:${szTag}`;
+      }
+    }
+
+    return fallbackLatestBadgeTag;
+  } catch {
+    return null;
+  }
+}
+
 // Fetches live supported models and their exact size tags directly from https://ollama.com/library
-ipcMain.handle('fetch-ollama-catalog', async () => {
+ipcMain.handle('fetch-ollama-catalog', async (_event, latestModelsToResolve = []) => {
+  const latestMatches = {};
+
+  // Resolve any standalone installed ":latest" models against their model page hashes in parallel
+  if (Array.isArray(latestModelsToResolve) && latestModelsToResolve.length > 0) {
+    await Promise.all(
+      latestModelsToResolve.map(async (item) => {
+        const fullTag = (item?.name || '').trim().toLowerCase();
+        const [base, sz] = fullTag.split(':');
+        if (base && (!sz || sz === 'latest')) {
+          const matchedTag = await resolveLatestModelTargetTag(base, item?.digest || '');
+          if (matchedTag) {
+            latestMatches[fullTag] = matchedTag;
+          }
+        }
+      })
+    );
+  }
+
   try {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 6000);
@@ -341,11 +403,11 @@ ipcMain.handle('fetch-ollama-catalog', async () => {
       }
 
       if (discovered.length > 0) {
-        return { status: 'ok', models: discovered };
+        return { status: 'ok', models: discovered, latestMatches };
       }
     }
   } catch {}
-  return { status: 'offline', models: [] };
+  return { status: 'offline', models: [], latestMatches };
 });
 
 // ---------------- INTERACTIVE TERMINAL SESSION BRIDGE ----------------

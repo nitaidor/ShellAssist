@@ -60,7 +60,6 @@ const inferFamilyForModel = (modelTag = '') => {
   if (!clean) return 'Gemma';
   const [base] = clean.split(':');
 
-  // Extract the alphabetic family prefix before digits or hyphens (e.g., "gemma4" -> "gemma", "qwen2.5-coder" -> "qwen")
   const prefixMatch = base.match(/^([a-z]+)/);
   const rootPrefix = prefixMatch ? prefixMatch[1] : base;
 
@@ -68,7 +67,6 @@ const inferFamilyForModel = (modelTag = '') => {
     return KNOWN_FAMILY_CASING[rootPrefix];
   }
 
-  // Fallback for any brand-new future model family from the web: capitalize cleanly
   return rootPrefix.charAt(0).toUpperCase() + rootPrefix.slice(1);
 };
 
@@ -108,7 +106,7 @@ const extractModelVersion = (baseName = '') => {
 // Extracts numeric parameter size in billions for sorting (e.g., "270m" -> 0.27, "e2b" -> 2, "e4b" -> 4, "12b" -> 12, "8x7b" -> 56)
 const extractParamSizeBillions = (sizeTag = '') => {
   if (!sizeTag || sizeTag.toLowerCase() === 'latest') return 0;
-  const lower = sizeTag.toLowerCase();
+  const lower = sizeTag.toLowerCase().trim();
   const moeMatch = lower.match(/^(\d+)x(\d+(?:\.\d+)?)([bm])$/);
   if (moeMatch) {
     const mult = parseFloat(moeMatch[1]) * parseFloat(moeMatch[2]);
@@ -120,28 +118,6 @@ const extractParamSizeBillions = (sizeTag = '') => {
     return stdMatch[2] === 'm' ? val / 1000 : val;
   }
   return 0.001;
-};
-
-// Sorts models strictly in natural hierarchy:
-// 1. Newer model generation first (e.g. Gemma 4 above Gemma 3)
-// 2. Larger parameter size first within the same model (e.g. 31B -> 26B -> 12B -> E4B -> E2B)
-const sortModelsList = (models = []) => {
-  return [...models].sort((a, b) => {
-    const [baseA, sizeA = ''] = a.value.toLowerCase().split(':');
-    const [baseB, sizeB = ''] = b.value.toLowerCase().split(':');
-
-    if (baseA !== baseB) {
-      const verA = extractModelVersion(baseA);
-      const verB = extractModelVersion(baseB);
-      if (verA !== verB) return verB - verA; // Newer generation on top (4 above 3)
-      return baseA.localeCompare(baseB);
-    }
-
-    const paramsA = extractParamSizeBillions(sizeA);
-    const paramsB = extractParamSizeBillions(sizeB);
-    if (paramsA !== paramsB) return paramsB - paramsA; // Larger parameter size on top (31B -> 26B -> 12B -> E4B -> E2B)
-    return sizeB.localeCompare(sizeA);
-  });
 };
 
 export const SettingsModal = ({
@@ -160,8 +136,11 @@ export const SettingsModal = ({
   // Ollama Manager State
   const [isOllamaRunning, setIsOllamaRunning] = useState(false);
   const [ollamaActionState, setOllamaActionState] = useState('idle'); // 'idle' | 'starting' | 'stopping'
-  const [installedModels, setInstalledModels] = useState([]);
+  // rawInstalledEntries stores [{ name: 'gemma4:e4b', digest: '009acb0d7fe1...', paramSize: '4.3B' }]
+  const [rawInstalledEntries, setRawInstalledEntries] = useState([]);
   const [onlineCatalogModels, setOnlineCatalogModels] = useState([]);
+  // latestMatches maps standalone installed ':latest' tags to their hash-matched numbered tag, e.g. { 'gemma4:latest': 'gemma4:e4b' }
+  const [latestMatches, setLatestMatches] = useState({});
   const [runningModel, setRunningModel] = useState('');
   const [selectedFamily, setSelectedFamily] = useState(() => inferFamilyForModel(settings?.localModel || 'gemma4:e4b'));
   const [selectedModel, setSelectedModel] = useState(() => String(settings?.localModel || 'gemma4:e4b'));
@@ -178,22 +157,101 @@ export const SettingsModal = ({
     return String(settings?.localEndpoint || 'http://localhost:11434').trim().replace(/\/+$/, '');
   };
 
-  const isModelInstalled = (modelTag, customInstalledList = null) => {
-    if (!modelTag) return false;
-    const list = customInstalledList || installedModels;
-    const target = modelTag.toLowerCase();
-    return list.some((inst) => {
-      const lowerInst = inst.toLowerCase();
-      return lowerInst === target;
+  // Deduplicates ':latest' entries:
+  // If 'gemma4:latest' (009acb0d7fe1) has the exact same digest hash as another installed tag like 'gemma4:e4b' (009acb0d7fe1),
+  // hide 'gemma4:latest' so only 'gemma4:e4b' is shown. If ONLY 'gemma4:latest' is installed, keep it!
+  const getDeduplicatedInstalledNames = (entries = rawInstalledEntries) => {
+    return entries
+      .filter((entry) => {
+        const lowerName = entry.name.toLowerCase();
+        if (!lowerName.endsWith(':latest')) return true;
+        if (!entry.digest) return true;
+        const hasNumberedDuplicateWithSameHash = entries.some(
+          (other) =>
+            other.name.toLowerCase() !== lowerName &&
+            !other.name.toLowerCase().endsWith(':latest') &&
+            other.digest &&
+            other.digest === entry.digest
+        );
+        return !hasNumberedDuplicateWithSameHash;
+      })
+      .map((e) => e.name);
+  };
+
+  const installedModels = getDeduplicatedInstalledNames(rawInstalledEntries);
+
+  // Resolves the effective parameter size score for sorting, placing a standalone installed ':latest'
+  // model immediately above the numbered tag that matches its web hash (e.g. +0.0001 above gemma4:e4b)
+  const getEffectiveParamScore = (modelTag = '') => {
+    const clean = modelTag.trim().toLowerCase();
+    const [, sz = 'latest'] = clean.split(':');
+
+    if (sz === 'latest') {
+      const matchedNumberedTag = latestMatches[clean];
+      if (matchedNumberedTag) {
+        const [, matchedSz = ''] = matchedNumberedTag.toLowerCase().split(':');
+        return extractParamSizeBillions(matchedSz) + 0.0001;
+      }
+      const localEntry = rawInstalledEntries.find((e) => e.name.toLowerCase() === clean);
+      if (localEntry?.paramSize) {
+        return extractParamSizeBillions(localEntry.paramSize) + 0.0001;
+      }
+      return 0;
+    }
+
+    return extractParamSizeBillions(sz);
+  };
+
+  // Sorts models strictly in natural hierarchy:
+  // 1. Newer model generation first (e.g. Gemma 4 above Gemma 3)
+  // 2. Larger parameter size first within the same model (with standalone ':latest' right above its hash-matched size)
+  const sortModelsList = (models = []) => {
+    return [...models].sort((a, b) => {
+      const [baseA, sizeA = ''] = a.value.toLowerCase().split(':');
+      const [baseB, sizeB = ''] = b.value.toLowerCase().split(':');
+
+      if (baseA !== baseB) {
+        const verA = extractModelVersion(baseA);
+        const verB = extractModelVersion(baseB);
+        if (verA !== verB) return verB - verA;
+        return baseA.localeCompare(baseB);
+      }
+
+      const paramsA = getEffectiveParamScore(a.value);
+      const paramsB = getEffectiveParamScore(b.value);
+      if (paramsA !== paramsB) return paramsB - paramsA;
+      return sizeB.localeCompare(sizeA);
     });
   };
 
-  // Build families & models dynamically from web catalog + locally installed models
+  const isModelInstalled = (modelTag, customDeduplicatedList = null) => {
+    if (!modelTag) return false;
+    const list = customDeduplicatedList || installedModels;
+    const target = modelTag.toLowerCase();
+    return list.some((inst) => inst.toLowerCase() === target);
+  };
+
+  // Checks if a given model tag is currently running (matching either by exact tag or by shared digest hash)
+  const isTagCurrentlyRunning = (modelTag) => {
+    if (!runningModel || !modelTag) return false;
+    const lowerTarget = modelTag.toLowerCase();
+    const lowerRunning = runningModel.toLowerCase();
+    if (lowerTarget === lowerRunning) return true;
+
+    const targetEntry = rawInstalledEntries.find((e) => e.name.toLowerCase() === lowerTarget);
+    const runningEntry = rawInstalledEntries.find((e) => e.name.toLowerCase() === lowerRunning);
+    if (targetEntry?.digest && runningEntry?.digest && targetEntry.digest === runningEntry.digest) {
+      return true;
+    }
+    return false;
+  };
+
+  // Build families & models dynamically from web catalog + deduplicated locally installed models
   const buildDynamicCatalog = () => {
     const grouped = {};
     const allRawTags = [...onlineCatalogModels, ...installedModels, ...(runningModel ? [runningModel] : [])];
 
-    // Identify which base models have explicit size tags (e.g. gemma4 has e2b, e4b, 12b, etc.)
+    // Identify which base models have explicit size tags on the web
     const basesWithExplicitSizes = new Set();
     allRawTags.forEach((t) => {
       if (!t || typeof t !== 'string') return;
@@ -203,18 +261,18 @@ export const SettingsModal = ({
       }
     });
 
-    const addTag = (rawTag) => {
+    const addTag = (rawTag, isFromInstalled = false) => {
       if (!rawTag || typeof rawTag !== 'string') return;
       const cleanTag = rawTag.trim();
       if (!cleanTag) return;
       const [base, sz = 'latest'] = cleanTag.toLowerCase().split(':');
 
-      // Filter out redundant ":latest" duplicate if this model already has explicit size tags
-      // (unless ":latest" is the currently running model)
+      // Only hide ':latest' if it is NOT in our deduplicated installed list and explicit sizes exist
       if (
         sz === 'latest' &&
-        basesWithExplicitSizes.has(base) &&
-        (!runningModel || runningModel.toLowerCase() !== cleanTag.toLowerCase())
+        !isFromInstalled &&
+        !isModelInstalled(cleanTag) &&
+        basesWithExplicitSizes.has(base)
       ) {
         return;
       }
@@ -230,9 +288,8 @@ export const SettingsModal = ({
       }
     };
 
-    installedModels.forEach(addTag);
-    if (runningModel) addTag(runningModel);
-    onlineCatalogModels.forEach(addTag);
+    installedModels.forEach((tag) => addTag(tag, true));
+    onlineCatalogModels.forEach((tag) => addTag(tag, false));
 
     const sortedCatalog = {};
     Object.keys(grouped).forEach((fam) => {
@@ -290,36 +347,34 @@ export const SettingsModal = ({
       const firstInstalled = famModels.find((m) => isModelInstalled(m.value));
       setSelectedModel(firstInstalled ? firstInstalled.value : famModels[0].value);
     }
-  }, [onlineCatalogModels, installedModels, isOllamaRunning, runningModel]);
+  }, [onlineCatalogModels, rawInstalledEntries, latestMatches, isOllamaRunning, runningModel]);
 
-  // Keep Uninstall Model dropdown synced to an installed non-running model
+  // Keep Uninstall Model dropdown synced to a deduplicated installed non-running model
   useEffect(() => {
     if (!isOllamaRunning || installedModels.length === 0) {
       setSelectedUninstallModel('');
       return;
     }
-    const isRunningMatch = (m) =>
-      runningModel && m.toLowerCase() === runningModel.toLowerCase();
 
     const currentValid = installedModels.some(
-      (m) => m === selectedUninstallModel && !isRunningMatch(m)
+      (m) => m === selectedUninstallModel && !isTagCurrentlyRunning(m)
     );
     if (!currentValid) {
       const sortedInstalled = sortModelsList(
         installedModels.map((tag) => ({ value: tag, label: formatModelDisplayLabel(tag) }))
       ).map((item) => item.value);
-      const firstDeletable = sortedInstalled.find((m) => !isRunningMatch(m));
+      const firstDeletable = sortedInstalled.find((m) => !isTagCurrentlyRunning(m));
       setSelectedUninstallModel(firstDeletable || sortedInstalled[0] || '');
     }
-  }, [installedModels, runningModel, isOllamaRunning]);
+  }, [rawInstalledEntries, runningModel, latestMatches, isOllamaRunning]);
 
-  // Sync Ollama server status, installed models, running model, and web catalog (ONLY when Ollama is running)
+  // Sync Ollama server status, installed models (with digests), running model, and web catalog
   const syncOllamaState = async (customEndpoint = null) => {
     const endpoint = customEndpoint || getCleanEndpoint();
     setOllamaError(null);
 
     let serverUp = false;
-    let detectedInstalled = [];
+    let detectedEntries = [];
     let detectedRunning = '';
 
     try {
@@ -331,9 +386,16 @@ export const SettingsModal = ({
         serverUp = true;
         const tagsData = await tagsRes.json();
         const rawList = Array.isArray(tagsData?.models) ? tagsData.models : [];
-        detectedInstalled = rawList
-          .map((m) => (typeof m === 'string' ? m : (m?.name || m?.model || '')))
-          .filter(Boolean);
+        detectedEntries = rawList
+          .map((m) => {
+            if (typeof m === 'string') return { name: m, digest: '', paramSize: '' };
+            return {
+              name: m?.name || m?.model || '',
+              digest: m?.digest || '',
+              paramSize: m?.details?.parameter_size || ''
+            };
+          })
+          .filter((e) => Boolean(e.name));
       }
     } catch {
       serverUp = false;
@@ -342,7 +404,7 @@ export const SettingsModal = ({
     if (!serverUp) {
       setIsOllamaRunning(false);
       setRunningModel('');
-      setInstalledModels([]);
+      setRawInstalledEntries([]);
       setOnlineCatalogModels([]);
       setStatusMessage('Ollama Server Offline');
       if (currentProvider === 'ollama' && setApiStatus) setApiStatus('invalid');
@@ -350,7 +412,9 @@ export const SettingsModal = ({
     }
 
     setIsOllamaRunning(true);
-    setInstalledModels(detectedInstalled);
+    setRawInstalledEntries(detectedEntries);
+
+    const deduplicatedNames = getDeduplicatedInstalledNames(detectedEntries);
 
     // Query /api/ps to check if a model is currently running in memory
     try {
@@ -363,14 +427,40 @@ export const SettingsModal = ({
         const runningList = Array.isArray(psData?.models) ? psData.models : [];
         if (runningList.length > 0) {
           const first = runningList[0];
-          detectedRunning = typeof first === 'string' ? first : (first?.name || first?.model || '');
+          const rawRunningName = typeof first === 'string' ? first : (first?.name || first?.model || '');
+          const runningDigest = typeof first === 'object' ? first?.digest : '';
+
+          // If the running model is a duplicate ':latest' that was deduplicated in favor of its numbered tag (e.g. gemma4:e4b),
+          // map it to the deduplicated numbered tag so the menus display it cleanly
+          if (rawRunningName.toLowerCase().endsWith(':latest') && !deduplicatedNames.some((n) => n.toLowerCase() === rawRunningName.toLowerCase())) {
+            const matchingNumbered = detectedEntries.find(
+              (e) =>
+                !e.name.toLowerCase().endsWith(':latest') &&
+                e.digest &&
+                (e.digest === runningDigest ||
+                  e.digest === detectedEntries.find((x) => x.name.toLowerCase() === rawRunningName.toLowerCase())?.digest)
+            );
+            detectedRunning = matchingNumbered ? matchingNumbered.name : rawRunningName;
+          } else {
+            detectedRunning = rawRunningName;
+          }
         }
       }
     } catch {}
 
-    // Fetch live model families & models from web ONLY when Ollama is running
+    // Identify any standalone installed ':latest' models so Electron can match their 12-char hash on ollama.com
+    const standaloneLatestToResolve = detectedEntries.filter(
+      (e) =>
+        e.name.toLowerCase().endsWith(':latest') &&
+        deduplicatedNames.some((n) => n.toLowerCase() === e.name.toLowerCase())
+    );
+
+    // Fetch live model families, models, and ':latest' hash matches from web ONLY when Ollama is running
     if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.fetchOllamaCatalog === 'function') {
-      window.electronAPI.fetchOllamaCatalog().then((res) => {
+      window.electronAPI.fetchOllamaCatalog(standaloneLatestToResolve).then((res) => {
+        if (res?.latestMatches && typeof res.latestMatches === 'object') {
+          setLatestMatches((prev) => ({ ...prev, ...res.latestMatches }));
+        }
         if (res?.status === 'ok' && Array.isArray(res.models) && res.models.length > 0) {
           setOnlineCatalogModels(res.models);
         }
@@ -387,15 +477,14 @@ export const SettingsModal = ({
       if (currentProvider === 'ollama' && setApiStatus) setApiStatus('valid');
     } else {
       setRunningModel('');
-      // Select the best installed model by default so the dropdown auto-scrolls directly to it
       const sortedDetected = sortModelsList(
-        detectedInstalled.filter((t) => !t.toLowerCase().endsWith(':latest')).map((t) => ({ value: t, label: t }))
+        deduplicatedNames.map((t) => ({ value: t, label: t }))
       );
-      const bestDefault = sortedDetected[0]?.value || detectedInstalled[0] || selectedModel || settings?.localModel || 'gemma4:e4b';
+      const bestDefault = sortedDetected[0]?.value || selectedModel || settings?.localModel || 'gemma4:e4b';
       const fam = inferFamilyForModel(bestDefault);
       setSelectedFamily(fam);
       setSelectedModel(bestDefault);
-      const isInst = isModelInstalled(bestDefault, detectedInstalled);
+      const isInst = isModelInstalled(bestDefault, deduplicatedNames);
       setStatusMessage(isInst ? `Ready (${bestDefault} is installed)` : `${bestDefault} is not installed`);
       if (currentProvider === 'ollama' && setApiStatus) setApiStatus('invalid');
     }
@@ -426,7 +515,7 @@ export const SettingsModal = ({
     } else {
       setStatusMessage(`${selectedModel} is not installed`);
     }
-  }, [selectedModel, installedModels, isOllamaRunning, ollamaActionState, modelActionState, runningModel]);
+  }, [selectedModel, rawInstalledEntries, isOllamaRunning, ollamaActionState, modelActionState, runningModel]);
 
   if (!isOpen) return null;
 
@@ -454,7 +543,7 @@ export const SettingsModal = ({
       } finally {
         setIsOllamaRunning(false);
         setRunningModel('');
-        setInstalledModels([]);
+        setRawInstalledEntries([]);
         setOnlineCatalogModels([]);
         setOllamaActionState('idle');
         setStatusMessage('Ollama Server Offline');
@@ -492,7 +581,6 @@ export const SettingsModal = ({
     setSelectedFamily(newFamily);
     const modelsInFamily = dynamicCatalog[newFamily] || [];
     if (modelsInFamily.length > 0) {
-      // Auto-select the best installed model in this family so the dropdown auto-scrolls to it when opened
       const firstInstalled = modelsInFamily.find((m) => isModelInstalled(m.value));
       setSelectedModel(firstInstalled ? firstInstalled.value : modelsInFamily[0].value);
     }
@@ -625,9 +713,9 @@ export const SettingsModal = ({
 
       pullAbortRef.current = null;
       setInstallProgress(null);
-      setInstalledModels((prev) => (prev.includes(target) ? prev : [...prev, target]));
 
-      // Automatically load and start the newly installed model
+      // Refresh installed entries from /api/tags so we have the exact digest hash for the newly pulled model
+      await syncOllamaState(endpoint);
       await startSelectedModelInMemory(target);
     } catch (err) {
       pullAbortRef.current = null;
@@ -666,14 +754,11 @@ export const SettingsModal = ({
     }
   };
 
+  // Uninstalls the selected model AND any duplicate ':latest' alias sharing its exact digest hash
+  // so disk space is completely freed and ':latest' doesn't pop back up!
   const handleUninstallModel = async () => {
     if (!isOllamaRunning || !selectedUninstallModel || modelActionState !== 'idle' || ollamaActionState !== 'idle') return;
-
-    const isTargetRunning =
-      runningModel &&
-      selectedUninstallModel.toLowerCase() === runningModel.toLowerCase();
-
-    if (isTargetRunning) return;
+    if (isTagCurrentlyRunning(selectedUninstallModel)) return;
 
     const target = selectedUninstallModel;
     const endpoint = getCleanEndpoint();
@@ -682,19 +767,38 @@ export const SettingsModal = ({
     setOllamaError(null);
 
     try {
-      const res = await fetch(`${endpoint}/api/delete`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: target })
-      });
+      const targetEntry = rawInstalledEntries.find((e) => e.name.toLowerCase() === target.toLowerCase());
+      const targetDigest = targetEntry?.digest || '';
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData?.error || `Failed to uninstall ${target} (HTTP ${res.status})`);
+      // Find all tags to remove: the target itself + any duplicate ':latest' tag sharing the exact same digest hash
+      const tagsToDelete = rawInstalledEntries
+        .filter((e) => {
+          const isExactTarget = e.name.toLowerCase() === target.toLowerCase();
+          const isDuplicateLatestWithSameHash =
+            targetDigest &&
+            e.digest === targetDigest &&
+            e.name.toLowerCase().endsWith(':latest');
+          return isExactTarget || isDuplicateLatestWithSameHash;
+        })
+        .map((e) => e.name);
+
+      if (tagsToDelete.length === 0) tagsToDelete.push(target);
+
+      for (const tagToRemove of tagsToDelete) {
+        const res = await fetch(`${endpoint}/api/delete`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: tagToRemove })
+        });
+
+        if (!res.ok && tagToRemove.toLowerCase() === target.toLowerCase()) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData?.error || `Failed to uninstall ${target} (HTTP ${res.status})`);
+        }
       }
 
-      const updatedInstalled = installedModels.filter((m) => m.toLowerCase() !== target.toLowerCase());
-      setInstalledModels(updatedInstalled);
+      const deletedLowerSet = new Set(tagsToDelete.map((t) => t.toLowerCase()));
+      setRawInstalledEntries((prev) => prev.filter((e) => !deletedLowerSet.has(e.name.toLowerCase())));
       setStatusMessage(runningModel ? `${runningModel} is Running` : `Uninstalled ${target}`);
     } catch (err) {
       setOllamaError(err?.message || `Failed to uninstall ${target}.`);
@@ -864,7 +968,7 @@ export const SettingsModal = ({
       }))
     : [{ value: selectedModel || 'N/A', label: isOllamaRunning ? 'Loading models...' : 'Start Ollama to load models' }];
 
-  // Build Uninstall dropdown options (installed models only, with running model grayed out & disabled)
+  // Build Uninstall dropdown options (deduplicated installed models, with running model grayed out & disabled)
   const uninstallOptions = installedModels.length > 0
     ? sortModelsList(
         installedModels.map((tag) => ({
@@ -872,9 +976,7 @@ export const SettingsModal = ({
           label: formatModelDisplayLabel(tag)
         }))
       ).map((m) => {
-        const isCurrentlyRunning =
-          Boolean(runningModel) &&
-          m.value.toLowerCase() === runningModel.toLowerCase();
+        const isCurrentlyRunning = isTagCurrentlyRunning(m.value);
         return {
           value: m.value,
           label: m.label,
@@ -884,10 +986,7 @@ export const SettingsModal = ({
       })
     : [{ value: '', label: 'No installed models' }];
 
-  const isSelectedUninstallRunning =
-    Boolean(runningModel) &&
-    Boolean(selectedUninstallModel) &&
-    selectedUninstallModel.toLowerCase() === runningModel.toLowerCase();
+  const isSelectedUninstallRunning = isTagCurrentlyRunning(selectedUninstallModel);
 
   const canUninstallSelected =
     isOllamaRunning &&
