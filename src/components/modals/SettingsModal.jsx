@@ -1,58 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Settings,
-  X,
-  Plus,
-  Trash2,
-  AlertTriangle,
-  AlertCircle,
-  XCircle,
-  CheckCircle2,
-  Loader2,
-  Play,
-  Square,
-  Download,
-  Ban,
-  HelpCircle
+  Settings, X, Plus, Trash2, AlertTriangle, AlertCircle, XCircle,
+  CheckCircle2, Loader2, Play, Square, Download, Ban, HelpCircle
 } from 'lucide-react';
 import CustomSelect from '../common/CustomSelect';
 
 const KNOWN_FAMILY_CASING = {
-  gemma: 'Gemma',
-  qwen: 'Qwen',
-  llama: 'Llama',
-  tinyllama: 'TinyLlama',
-  codellama: 'CodeLlama',
-  deepseek: 'DeepSeek',
-  mistral: 'Mistral',
-  mixtral: 'Mistral',
-  codestral: 'Mistral',
-  devstral: 'Mistral',
-  ministral: 'Mistral',
-  mathstral: 'Mistral',
-  phi: 'Phi',
-  gpt: 'GPT-OSS',
-  glm: 'GLM',
-  minimax: 'MiniMax',
-  nemotron: 'Nemotron',
-  granite: 'Granite',
-  command: 'Command-R',
-  starcoder: 'StarCoder',
-  olmo: 'OLMo',
-  smollm: 'SmolLM',
-  falcon: 'Falcon',
-  aya: 'Aya',
-  cogito: 'Cogito',
-  kimi: 'Kimi',
-  dolphin: 'Dolphin',
-  wizardlm: 'WizardLM',
-  wizardcoder: 'WizardCoder',
-  yi: 'Yi',
-  solar: 'Solar',
-  internlm: 'InternLM',
-  opencoder: 'OpenCoder',
-  qWQ: 'Qwen',
-  qwq: 'Qwen'
+  gemma: 'Gemma', qwen: 'Qwen', llama: 'Llama', tinyllama: 'TinyLlama', codellama: 'CodeLlama',
+  deepseek: 'DeepSeek', mistral: 'Mistral', mixtral: 'Mistral', codestral: 'Mistral',
+  devstral: 'Mistral', ministral: 'Mistral', mathstral: 'Mistral', phi: 'Phi', gpt: 'GPT-OSS',
+  glm: 'GLM', minimax: 'MiniMax', nemotron: 'Nemotron', granite: 'Granite', command: 'Command-R',
+  starcoder: 'StarCoder', olmo: 'OLMo', smollm: 'SmolLM', falcon: 'Falcon', aya: 'Aya',
+  cogito: 'Cogito', kimi: 'Kimi', dolphin: 'Dolphin', wizardlm: 'WizardLM',
+  wizardcoder: 'WizardCoder', yi: 'Yi', solar: 'Solar', internlm: 'InternLM',
+  opencoder: 'OpenCoder', qWQ: 'Qwen', qwq: 'Qwen'
 };
 
 // Recommended models categorized by family, sorted with newer generations and larger parameter models on top
@@ -61,147 +22,65 @@ const RECOMMENDED_OLLAMA_MODELS = [
     family: 'Qwen (Alibaba)',
     subtitle: 'Top recommendation for shell scripting, PowerShell, Bash & coding accuracy',
     models: [
-      {
-        tag: 'qwen3:8b',
-        ram: '~5.2 GB RAM',
-        tier: '16 GB RAM',
-        desc: 'Strong all-rounder for both command generation and natural-language explanations.'
-      },
-      {
-        tag: 'qwen3:4b',
-        ram: '~2.6 GB RAM',
-        tier: '8–16 GB RAM',
-        desc: 'Fast, modern compact model for everyday commands and script analysis.'
-      },
-      {
-        tag: 'qwen2.5-coder:14b',
-        ram: '~9.0 GB RAM',
-        tier: '32 GB+ RAM',
-        desc: 'Near-cloud-level complex script generation and multi-step debugging.'
-      },
-      {
-        tag: 'qwen2.5-coder:7b',
-        ram: '~4.8 GB RAM',
-        tier: 'Best Overall (16 GB RAM)',
-        desc: 'Exceptional accuracy with PowerShell cmdlets, Bash pipelines, and strict JSON formatting.'
-      },
-      {
-        tag: 'qwen2.5-coder:3b',
-        ram: '~2.2 GB RAM',
-        tier: 'Best Lightweight / Fast',
-        desc: 'Near-instant generation on laptops and CPUs; ideal for quick everyday commands.'
-      }
+      { tag: 'qwen3:8b', ram: '~5.2 GB RAM', tier: '16 GB RAM', desc: 'Strong all-rounder for both command generation and natural-language explanations.' },
+      { tag: 'qwen3:4b', ram: '~2.6 GB RAM', tier: '8–16 GB RAM', desc: 'Fast, modern compact model for everyday commands and script analysis.' },
+      { tag: 'qwen2.5-coder:14b', ram: '~9.0 GB RAM', tier: '32 GB+ RAM', desc: 'Near-cloud-level complex script generation and multi-step debugging.' },
+      { tag: 'qwen2.5-coder:7b', ram: '~4.8 GB RAM', tier: 'Best Overall (16 GB RAM)', desc: 'Exceptional accuracy with PowerShell cmdlets, Bash pipelines, and strict JSON formatting.' },
+      { tag: 'qwen2.5-coder:3b', ram: '~2.2 GB RAM', tier: 'Best Lightweight / Fast', desc: 'Near-instant generation on laptops and systems without a dedicated GPU; ideal for quick everyday commands.' }
     ]
   },
   {
     family: 'Gemma (Google)',
     subtitle: 'Fast edge architecture & clear code explanations',
     models: [
-      {
-        tag: 'gemma4:12b',
-        ram: '~7.5 GB RAM',
-        tier: '16–32 GB RAM',
-        desc: 'High-capacity model for complex script writing and deep error diagnosis.'
-      },
-      {
-        tag: 'gemma4:e4b',
-        ram: '~3.2 GB RAM',
-        tier: 'Balanced Default',
-        desc: 'Fast and reliable at structured JSON output and explaining code in the Analyzer.'
-      },
-      {
-        tag: 'gemma4:e2b',
-        ram: '~1.8 GB RAM',
-        tier: 'Ultra-Lightweight',
-        desc: 'Runs smoothly even on older laptops, integrated graphics, or low-RAM systems.'
-      }
+      { tag: 'gemma4:12b', ram: '~7.5 GB RAM', tier: '16–32 GB RAM', desc: 'High-capacity model for complex script writing and deep error diagnosis.' },
+      { tag: 'gemma4:e4b', ram: '~3.2 GB RAM', tier: 'Balanced Default', desc: 'Fast and reliable at structured JSON output and explaining code in the Analyzer.' },
+      { tag: 'gemma4:e2b', ram: '~1.8 GB RAM', tier: 'Ultra-Lightweight', desc: 'Runs smoothly even on older laptops, integrated graphics, or low-RAM systems.' }
     ]
   },
   {
     family: 'Llama (Meta)',
     subtitle: 'Dependable instruction following & general shell tasks',
     models: [
-      {
-        tag: 'llama3.2:3b',
-        ram: '~2.0 GB RAM',
-        tier: '8–16 GB RAM',
-        desc: 'Fast and compact for quick everyday terminal commands with minimal memory usage.'
-      },
-      {
-        tag: 'llama3.1:8b',
-        ram: '~4.7 GB RAM',
-        tier: '16 GB RAM',
-        desc: 'Proven 8B workhorse for general-purpose CLI assistance.'
-      }
+      { tag: 'llama3.2:3b', ram: '~2.0 GB RAM', tier: '8–16 GB RAM', desc: 'Fast and compact for quick everyday terminal commands with minimal memory usage.' },
+      { tag: 'llama3.1:8b', ram: '~4.7 GB RAM', tier: '16 GB RAM', desc: 'Proven 8B workhorse for general-purpose CLI assistance.' }
     ]
   },
   {
     family: 'Mistral (Mistral AI)',
     subtitle: 'Dedicated workstation coding & snappy 7B models',
     models: [
-      {
-        tag: 'codestral:22b',
-        ram: '~13.0 GB RAM',
-        tier: '32 GB+ RAM',
-        desc: 'Mistral’s flagship dedicated code and CLI model for high-end workstations.'
-      },
-      {
-        tag: 'mistral:7b',
-        ram: '~4.1 GB RAM',
-        tier: '16 GB RAM',
-        desc: 'Fast and dependable 7B model on mid-range GPUs.'
-      }
+      { tag: 'codestral:22b', ram: '~13.0 GB RAM', tier: '32 GB+ RAM', desc: 'Mistral’s flagship dedicated code and CLI model for high-end workstations.' },
+      { tag: 'mistral:7b', ram: '~4.1 GB RAM', tier: '16 GB RAM', desc: 'Fast and dependable 7B model on mid-range GPUs.' }
     ]
   },
   {
     family: 'Phi (Microsoft)',
     subtitle: 'High reasoning density in a compact footprint',
     models: [
-      {
-        tag: 'phi4:14b',
-        ram: '~9.0 GB RAM',
-        tier: '24–32 GB+ RAM',
-        desc: 'Advanced logic and reasoning for diagnosing tricky terminal errors.'
-      },
-      {
-        tag: 'phi4-mini:3.8b',
-        ram: '~2.5 GB RAM',
-        tier: '8–16 GB RAM',
-        desc: 'Compact reasoning and script analysis for laptops.'
-      }
+      { tag: 'phi4:14b', ram: '~9.0 GB RAM', tier: '24–32 GB+ RAM', desc: 'Advanced logic and reasoning for diagnosing tricky terminal errors.' },
+      { tag: 'phi4-mini:3.8b', ram: '~2.5 GB RAM', tier: '8–16 GB RAM', desc: 'Compact reasoning and script analysis for laptops.' }
     ]
   },
   {
     family: 'DeepSeek',
     subtitle: 'Mixture-of-Experts coding specialist',
     models: [
-      {
-        tag: 'deepseek-coder-v2:16b',
-        ram: '~8.9 GB RAM',
-        tier: '16–32 GB RAM',
-        desc: 'Fast MoE architecture tailored specifically for code and shell scripts.'
-      }
+      { tag: 'deepseek-coder-v2:16b', ram: '~8.9 GB RAM', tier: '16–32 GB RAM', desc: 'Fast MoE architecture tailored specifically for code and shell scripts.' }
     ]
   }
 ];
 
-// Dynamically derives the Model Family name directly from any web or local model tag
 const inferFamilyForModel = (modelTag = '') => {
   const clean = modelTag.trim().toLowerCase();
   if (!clean) return 'Gemma';
   const [base] = clean.split(':');
-
   const prefixMatch = base.match(/^([a-z]+)/);
   const rootPrefix = prefixMatch ? prefixMatch[1] : base;
-
-  if (KNOWN_FAMILY_CASING[rootPrefix]) {
-    return KNOWN_FAMILY_CASING[rootPrefix];
-  }
-
+  if (KNOWN_FAMILY_CASING[rootPrefix]) return KNOWN_FAMILY_CASING[rootPrefix];
   return rootPrefix.charAt(0).toUpperCase() + rootPrefix.slice(1);
 };
 
-// Formats a raw tag like "gemma4:e4b" into "Gemma 4 E4B (gemma4:e4b)"
 const formatModelDisplayLabel = (rawTag = '') => {
   const clean = rawTag.trim();
   if (!clean) return '';
@@ -221,14 +100,10 @@ const formatModelDisplayLabel = (rawTag = '') => {
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
-  const formattedSize = sizeTag && sizeTag.toLowerCase() !== 'latest'
-    ? ` ${sizeTag.toUpperCase()}`
-    : '';
-
+  const formattedSize = sizeTag && sizeTag.toLowerCase() !== 'latest' ? ` ${sizeTag.toUpperCase()}` : '';
   return `${formattedBase}${formattedSize} (${clean})`;
 };
 
-// Formats byte size from /api/tags into human-readable disk size (e.g. "3.2 GB" or "850 MB")
 const formatDiskSize = (bytes) => {
   if (!bytes || typeof bytes !== 'number' || bytes <= 0) return '';
   const gb = bytes / (1024 ** 3);
@@ -237,13 +112,11 @@ const formatDiskSize = (bytes) => {
   return `${Math.max(1, Math.round(mb))} MB`;
 };
 
-// Extracts major/minor version number from the base model name (e.g., "gemma4" -> 4, "qwen3.5" -> 3.5)
 const extractModelVersion = (baseName = '') => {
   const match = baseName.match(/(\d+(?:\.\d+)?)/);
   return match ? parseFloat(match[1]) : 0;
 };
 
-// Extracts numeric parameter size in billions for sorting (e.g., "270m" -> 0.27, "e2b" -> 2, "e4b" -> 4, "12b" -> 12, "8x7b" -> 56)
 const extractParamSizeBillions = (sizeTag = '') => {
   if (!sizeTag || sizeTag.toLowerCase() === 'latest') return 0;
   const lower = sizeTag.toLowerCase().trim();
@@ -273,28 +146,27 @@ export const SettingsModal = ({
 }) => {
   const [newKeyInput, setNewKeyInput] = useState('');
   const [showRecommendedModal, setShowRecommendedModal] = useState(false);
+  const [recommendedAlert, setRecommendedAlert] = useState(null);
 
   // Ollama Manager State
   const [isOllamaRunning, setIsOllamaRunning] = useState(false);
-  const [ollamaActionState, setOllamaActionState] = useState('idle'); // 'idle' | 'starting' | 'stopping'
-  // rawInstalledEntries stores [{ name: 'gemma4:e4b', digest: '009acb0d7fe1...', paramSize: '4.3B', diskBytes: 3338801804 }]
+  const [ollamaActionState, setOllamaActionState] = useState('idle');
   const [rawInstalledEntries, setRawInstalledEntries] = useState([]);
   const [onlineCatalogModels, setOnlineCatalogModels] = useState([]);
-  // latestMatches maps standalone installed ':latest' tags to their hash-matched numbered tag, e.g. { 'gemma4:latest': 'gemma4:e4b' }
   const [latestMatches, setLatestMatches] = useState({});
   const [runningModel, setRunningModel] = useState('');
   const [selectedFamily, setSelectedFamily] = useState(() => inferFamilyForModel(settings?.localModel || 'gemma4:e4b'));
   const [selectedModel, setSelectedModel] = useState(() => String(settings?.localModel || 'gemma4:e4b'));
   const [selectedUninstallModel, setSelectedUninstallModel] = useState('');
-  const [modelActionState, setModelActionState] = useState('idle'); // 'idle' | 'starting' | 'stopping' | 'installing' | 'uninstalling'
+  const [modelActionState, setModelActionState] = useState('idle');
   const [statusMessage, setStatusMessage] = useState('Checking Ollama status...');
   const [installProgress, setInstallProgress] = useState(null);
   const [ollamaError, setOllamaError] = useState(null);
 
   const pullAbortRef = useRef(null);
+  const recommendedScrollRef = useRef(null);
   const currentProvider = settings?.apiProvider || 'gemini';
 
-  // Close only the Recommended Models popup on Escape when it is open
   useEffect(() => {
     if (!showRecommendedModal) return;
     const handleKeyDown = (e) => {
@@ -307,19 +179,29 @@ export const SettingsModal = ({
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [showRecommendedModal]);
 
+  // Ensure the Recommended Models popup scrolls to the top whenever an error banner is triggered
+  useEffect(() => {
+    if (recommendedAlert && recommendedScrollRef.current) {
+      recommendedScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [recommendedAlert]);
+
+  const triggerRecommendedAlert = (title, message) => {
+    setRecommendedAlert({ title, message });
+    if (recommendedScrollRef.current) {
+      recommendedScrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   const getCleanEndpoint = () => {
     return String(settings?.localEndpoint || 'http://localhost:11434').trim().replace(/\/+$/, '');
   };
 
-  // Deduplicates ':latest' entries:
-  // If 'gemma4:latest' (009acb0d7fe1) has the exact same digest hash as another installed tag like 'gemma4:e4b' (009acb0d7fe1),
-  // hide 'gemma4:latest' so only 'gemma4:e4b' is shown. If ONLY 'gemma4:latest' is installed, keep it!
   const getDeduplicatedInstalledNames = (entries = rawInstalledEntries) => {
     return entries
       .filter((entry) => {
         const lowerName = entry.name.toLowerCase();
-        if (!lowerName.endsWith(':latest')) return true;
-        if (!entry.digest) return true;
+        if (!lowerName.endsWith(':latest') || !entry.digest) return true;
         const hasNumberedDuplicateWithSameHash = entries.some(
           (other) =>
             other.name.toLowerCase() !== lowerName &&
@@ -334,12 +216,9 @@ export const SettingsModal = ({
 
   const installedModels = getDeduplicatedInstalledNames(rawInstalledEntries);
 
-  // Resolves the effective parameter size score for sorting, placing a standalone installed ':latest'
-  // model immediately above the numbered tag that matches its web hash (e.g. +0.0001 above gemma4:e4b)
   const getEffectiveParamScore = (modelTag = '') => {
     const clean = modelTag.trim().toLowerCase();
     const [, sz = 'latest'] = clean.split(':');
-
     if (sz === 'latest') {
       const matchedNumberedTag = latestMatches[clean];
       if (matchedNumberedTag) {
@@ -352,25 +231,19 @@ export const SettingsModal = ({
       }
       return 0;
     }
-
     return extractParamSizeBillions(sz);
   };
 
-  // Sorts models strictly in natural hierarchy:
-  // 1. Newer model generation first (e.g. Gemma 4 above Gemma 3)
-  // 2. Larger parameter size first within the same model (with standalone ':latest' right above its hash-matched size)
   const sortModelsList = (models = []) => {
     return [...models].sort((a, b) => {
       const [baseA, sizeA = ''] = a.value.toLowerCase().split(':');
       const [baseB, sizeB = ''] = b.value.toLowerCase().split(':');
-
       if (baseA !== baseB) {
         const verA = extractModelVersion(baseA);
         const verB = extractModelVersion(baseB);
         if (verA !== verB) return verB - verA;
         return baseA.localeCompare(baseB);
       }
-
       const paramsA = getEffectiveParamScore(a.value);
       const paramsB = getEffectiveParamScore(b.value);
       if (paramsA !== paramsB) return paramsB - paramsA;
@@ -385,34 +258,25 @@ export const SettingsModal = ({
     return list.some((inst) => inst.toLowerCase() === target);
   };
 
-  // Checks if a given model tag is currently running (matching either by exact tag or by shared digest hash)
   const isTagCurrentlyRunning = (modelTag) => {
     if (!runningModel || !modelTag) return false;
     const lowerTarget = modelTag.toLowerCase();
     const lowerRunning = runningModel.toLowerCase();
     if (lowerTarget === lowerRunning) return true;
-
     const targetEntry = rawInstalledEntries.find((e) => e.name.toLowerCase() === lowerTarget);
     const runningEntry = rawInstalledEntries.find((e) => e.name.toLowerCase() === lowerRunning);
-    if (targetEntry?.digest && runningEntry?.digest && targetEntry.digest === runningEntry.digest) {
-      return true;
-    }
-    return false;
+    return Boolean(targetEntry?.digest && runningEntry?.digest && targetEntry.digest === runningEntry.digest);
   };
 
-  // Build families & models dynamically from web catalog + deduplicated locally installed models
   const buildDynamicCatalog = () => {
     const grouped = {};
     const allRawTags = [...onlineCatalogModels, ...installedModels, ...(runningModel ? [runningModel] : [])];
-
-    // Identify which base models have explicit size tags on the web
     const basesWithExplicitSizes = new Set();
+
     allRawTags.forEach((t) => {
       if (!t || typeof t !== 'string') return;
       const [base, sz] = t.trim().toLowerCase().split(':');
-      if (base && sz && sz !== 'latest') {
-        basesWithExplicitSizes.add(base);
-      }
+      if (base && sz && sz !== 'latest') basesWithExplicitSizes.add(base);
     });
 
     const addTag = (rawTag, isFromInstalled = false) => {
@@ -421,24 +285,14 @@ export const SettingsModal = ({
       if (!cleanTag) return;
       const [base, sz = 'latest'] = cleanTag.toLowerCase().split(':');
 
-      // Only hide ':latest' if it is NOT in our deduplicated installed list and explicit sizes exist
-      if (
-        sz === 'latest' &&
-        !isFromInstalled &&
-        !isModelInstalled(cleanTag) &&
-        basesWithExplicitSizes.has(base)
-      ) {
+      if (sz === 'latest' && !isFromInstalled && !isModelInstalled(cleanTag) && basesWithExplicitSizes.has(base)) {
         return;
       }
 
       const fam = inferFamilyForModel(cleanTag);
       if (!grouped[fam]) grouped[fam] = [];
-      const exists = grouped[fam].some((m) => m.value.toLowerCase() === cleanTag.toLowerCase());
-      if (!exists) {
-        grouped[fam].push({
-          value: cleanTag,
-          label: formatModelDisplayLabel(cleanTag)
-        });
+      if (!grouped[fam].some((m) => m.value.toLowerCase() === cleanTag.toLowerCase())) {
+        grouped[fam].push({ value: cleanTag, label: formatModelDisplayLabel(cleanTag) });
       }
     };
 
@@ -447,54 +301,36 @@ export const SettingsModal = ({
 
     const sortedCatalog = {};
     Object.keys(grouped).forEach((fam) => {
-      if (grouped[fam] && grouped[fam].length > 0) {
-        sortedCatalog[fam] = sortModelsList(grouped[fam]);
-      }
+      if (grouped[fam]?.length > 0) sortedCatalog[fam] = sortModelsList(grouped[fam]);
     });
-
     return sortedCatalog;
   };
 
   const dynamicCatalog = buildDynamicCatalog();
 
-  // Build Model Family dropdown options with "<x> Installed" badges
   const familyOptions = (() => {
     const families = Object.keys(dynamicCatalog);
     if (families.length === 0) {
       return [{ value: selectedFamily || 'Gemma', label: selectedFamily || 'Gemma', badge: null }];
     }
-
     return families.map((fam) => {
-      const count = isOllamaRunning
-        ? (dynamicCatalog[fam] || []).filter((m) => isModelInstalled(m.value)).length
-        : 0;
-      return {
-        value: fam,
-        label: fam,
-        badge: count > 0 ? `${count} Installed` : null
-      };
+      const count = isOllamaRunning ? (dynamicCatalog[fam] || []).filter((m) => isModelInstalled(m.value)).length : 0;
+      return { value: fam, label: fam, badge: count > 0 ? `${count} Installed` : null };
     });
   })();
 
   const getShortModelLabel = (modelTag) => {
     if (!modelTag) return 'Model';
-    const full = formatModelDisplayLabel(modelTag);
-    return full.replace(/\s*\([^)]*\)\s*$/, '').trim() || modelTag;
+    return formatModelDisplayLabel(modelTag).replace(/\s*\([^)]*\)\s*$/, '').trim() || modelTag;
   };
 
-  // Keep selectedFamily and selectedModel valid when dynamic catalog updates
   useEffect(() => {
     if (!isOllamaRunning || runningModel) return;
     const availableFamilies = Object.keys(dynamicCatalog);
     if (availableFamilies.length === 0) return;
 
-    const activeFam = availableFamilies.includes(selectedFamily)
-      ? selectedFamily
-      : availableFamilies[0];
-
-    if (activeFam !== selectedFamily) {
-      setSelectedFamily(activeFam);
-    }
+    const activeFam = availableFamilies.includes(selectedFamily) ? selectedFamily : availableFamilies[0];
+    if (activeFam !== selectedFamily) setSelectedFamily(activeFam);
 
     const famModels = dynamicCatalog[activeFam] || [];
     if (famModels.length > 0 && !famModels.some((m) => m.value.toLowerCase() === selectedModel.toLowerCase())) {
@@ -503,26 +339,19 @@ export const SettingsModal = ({
     }
   }, [onlineCatalogModels, rawInstalledEntries, latestMatches, isOllamaRunning, runningModel]);
 
-  // Keep Uninstall Model dropdown synced to a deduplicated installed non-running model
   useEffect(() => {
     if (!isOllamaRunning || installedModels.length === 0) {
       setSelectedUninstallModel('');
       return;
     }
-
-    const currentValid = installedModels.some(
-      (m) => m === selectedUninstallModel && !isTagCurrentlyRunning(m)
-    );
+    const currentValid = installedModels.some((m) => m === selectedUninstallModel && !isTagCurrentlyRunning(m));
     if (!currentValid) {
-      const sortedInstalled = sortModelsList(
-        installedModels.map((tag) => ({ value: tag, label: formatModelDisplayLabel(tag) }))
-      ).map((item) => item.value);
+      const sortedInstalled = sortModelsList(installedModels.map((tag) => ({ value: tag, label: formatModelDisplayLabel(tag) }))).map((item) => item.value);
       const firstDeletable = sortedInstalled.find((m) => !isTagCurrentlyRunning(m));
       setSelectedUninstallModel(firstDeletable || sortedInstalled[0] || '');
     }
   }, [rawInstalledEntries, runningModel, latestMatches, isOllamaRunning]);
 
-  // Sync Ollama server status, installed models (with digests & disk sizes), running model, and web catalog
   const syncOllamaState = async (customEndpoint = null) => {
     const endpoint = customEndpoint || getCleanEndpoint();
     setOllamaError(null);
@@ -568,10 +397,8 @@ export const SettingsModal = ({
 
     setIsOllamaRunning(true);
     setRawInstalledEntries(detectedEntries);
-
     const deduplicatedNames = getDeduplicatedInstalledNames(detectedEntries);
 
-    // Query /api/ps to check if a model is currently running in memory
     try {
       const controller = new AbortController();
       const t = setTimeout(() => controller.abort(), 2000);
@@ -601,14 +428,10 @@ export const SettingsModal = ({
       }
     } catch {}
 
-    // Identify any standalone installed ':latest' models so Electron can match their 12-char hash on ollama.com
     const standaloneLatestToResolve = detectedEntries.filter(
-      (e) =>
-        e.name.toLowerCase().endsWith(':latest') &&
-        deduplicatedNames.some((n) => n.toLowerCase() === e.name.toLowerCase())
+      (e) => e.name.toLowerCase().endsWith(':latest') && deduplicatedNames.some((n) => n.toLowerCase() === e.name.toLowerCase())
     );
 
-    // Fetch live model families, models, and ':latest' hash matches from web ONLY when Ollama is running
     if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.fetchOllamaCatalog === 'function') {
       window.electronAPI.fetchOllamaCatalog(standaloneLatestToResolve).then((res) => {
         if (res?.latestMatches && typeof res.latestMatches === 'object') {
@@ -630,9 +453,7 @@ export const SettingsModal = ({
       if (currentProvider === 'ollama' && setApiStatus) setApiStatus('valid');
     } else {
       setRunningModel('');
-      const sortedDetected = sortModelsList(
-        deduplicatedNames.map((t) => ({ value: t, label: t }))
-      );
+      const sortedDetected = sortModelsList(deduplicatedNames.map((t) => ({ value: t, label: t })));
       const bestDefault = sortedDetected[0]?.value || selectedModel || settings?.localModel || 'gemma4:e4b';
       const fam = inferFamilyForModel(bestDefault);
       setSelectedFamily(fam);
@@ -659,20 +480,14 @@ export const SettingsModal = ({
     }
   }, [isOpen, currentProvider]);
 
-  // Update status message when user selects different models while no model is running
   useEffect(() => {
     if (!isOllamaRunning || ollamaActionState !== 'idle' || modelActionState !== 'idle' || runningModel) return;
     if (!selectedModel) return;
-    if (isModelInstalled(selectedModel)) {
-      setStatusMessage(`Ready (${selectedModel} is installed)`);
-    } else {
-      setStatusMessage(`${selectedModel} is not installed`);
-    }
+    setStatusMessage(isModelInstalled(selectedModel) ? `Ready (${selectedModel} is installed)` : `${selectedModel} is not installed`);
   }, [selectedModel, rawInstalledEntries, isOllamaRunning, ollamaActionState, modelActionState, runningModel]);
 
   if (!isOpen) return null;
 
-  // ---------------- OLLAMA SERVER & MODEL HANDLERS ----------------
   const handleToggleOllamaServer = async () => {
     if (ollamaActionState !== 'idle') return;
     setOllamaError(null);
@@ -744,6 +559,54 @@ export const SettingsModal = ({
     setSelectedModel(String(newModel));
   };
 
+  const handleSelectRecommendedModel = (targetTag) => {
+    setRecommendedAlert(null);
+
+    if (!isOllamaRunning) {
+      triggerRecommendedAlert(
+        'Ollama Server Offline',
+        'Please start the Ollama server first before selecting a model from the catalog.'
+      );
+      return;
+    }
+
+    if (ollamaActionState !== 'idle' || modelActionState !== 'idle') {
+      triggerRecommendedAlert(
+        'Operation in Progress',
+        'Please wait for the current model operation to finish before switching models.'
+      );
+      return;
+    }
+
+    if (runningModel) {
+      if (isTagCurrentlyRunning(targetTag)) {
+        setShowRecommendedModal(false);
+        return;
+      }
+      triggerRecommendedAlert(
+        'Another Model is Running',
+        `"${runningModel}" is currently running. Please stop the active model before selecting a different one.`
+      );
+      return;
+    }
+
+    const fam = inferFamilyForModel(targetTag);
+    const famModels = dynamicCatalog[fam] || [];
+    const matched = famModels.find((m) => m.value.toLowerCase() === targetTag.toLowerCase());
+
+    if (!matched) {
+      triggerRecommendedAlert(
+        'Model Not Found',
+        `"${targetTag}" was not found in the current Ollama library and may no longer be supported.`
+      );
+      return;
+    }
+
+    setSelectedFamily(fam);
+    setSelectedModel(matched.value);
+    setShowRecommendedModal(false);
+  };
+
   const startSelectedModelInMemory = async (modelToStart) => {
     const endpoint = getCleanEndpoint();
     setModelActionState('starting');
@@ -754,11 +617,7 @@ export const SettingsModal = ({
       const res = await fetch(`${endpoint}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: modelToStart,
-          prompt: '',
-          keep_alive: -1
-        })
+        body: JSON.stringify({ model: modelToStart, prompt: '', keep_alive: -1 })
       });
 
       if (!res.ok) {
@@ -791,10 +650,7 @@ export const SettingsModal = ({
       await fetch(`${endpoint}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: target,
-          keep_alive: 0
-        })
+        body: JSON.stringify({ model: target, keep_alive: 0 })
       });
     } catch {}
 
@@ -856,9 +712,7 @@ export const SettingsModal = ({
                 setStatusMessage(`Installing ${target}: ${evt.status}`);
               }
             } catch (parseErr) {
-              if (parseErr.message && !parseErr.message.includes('JSON')) {
-                throw parseErr;
-              }
+              if (parseErr.message && !parseErr.message.includes('JSON')) throw parseErr;
             }
           }
         }
@@ -906,7 +760,6 @@ export const SettingsModal = ({
     }
   };
 
-  // Uninstalls the selected model AND any duplicate ':latest' alias sharing its exact digest hash
   const handleUninstallModel = async () => {
     if (!isOllamaRunning || !selectedUninstallModel || modelActionState !== 'idle' || ollamaActionState !== 'idle') return;
     if (isTagCurrentlyRunning(selectedUninstallModel)) return;
@@ -925,9 +778,7 @@ export const SettingsModal = ({
         .filter((e) => {
           const isExactTarget = e.name.toLowerCase() === target.toLowerCase();
           const isDuplicateLatestWithSameHash =
-            targetDigest &&
-            e.digest === targetDigest &&
-            e.name.toLowerCase().endsWith(':latest');
+            targetDigest && e.digest === targetDigest && e.name.toLowerCase().endsWith(':latest');
           return isExactTarget || isDuplicateLatestWithSameHash;
         })
         .map((e) => e.name);
@@ -1108,7 +959,6 @@ export const SettingsModal = ({
     return [];
   };
 
-  // Build dropdown options for the selected family with "Installed" badges
   const rawFamilyModels = dynamicCatalog[selectedFamily] || [];
   const currentFamilyModels = rawFamilyModels.length > 0
     ? rawFamilyModels.map((m) => ({
@@ -1118,7 +968,6 @@ export const SettingsModal = ({
       }))
     : [{ value: selectedModel || 'N/A', label: isOllamaRunning ? 'Loading models...' : 'Start Ollama to load models' }];
 
-  // Build Uninstall dropdown options (deduplicated installed models with disk size badge, and running model grayed out & disabled)
   const uninstallOptions = installedModels.length > 0
     ? sortModelsList(
         installedModels.map((tag) => ({
@@ -1152,7 +1001,6 @@ export const SettingsModal = ({
     ollamaActionState === 'idle' &&
     modelActionState === 'idle';
 
-  // Lock main selection dropdowns when Ollama is offline, or when a model is running, or during transitions
   const areDropdownsLocked =
     !isOllamaRunning ||
     Boolean(runningModel) ||
@@ -1175,7 +1023,6 @@ export const SettingsModal = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-      {/* Expanded Settings Modal Width (max-w-3xl) so model names, badges, and status progress never get cut off */}
       <div className="bg-[#161b22] border border-[#30363d] w-full max-w-3xl rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between p-6 border-b border-[#30363d] bg-[#0d1117]">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
@@ -1369,7 +1216,10 @@ export const SettingsModal = ({
                     </label>
                     <button
                       type="button"
-                      onClick={() => setShowRecommendedModal(true)}
+                      onClick={() => {
+                        setRecommendedAlert(null);
+                        setShowRecommendedModal(true);
+                      }}
                       title="Recommended Local Models"
                       aria-label="Recommended Local Models"
                       className="modal-close-btn p-1 rounded-full text-gray-400 hover:text-white transition-colors"
@@ -1592,7 +1442,7 @@ export const SettingsModal = ({
                   <HelpCircle className="w-5 h-5 header-logo shrink-0" /> Recommended Local Models for ShellAssist
                 </h3>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  Sorted by model family and parameter capacity (newer generations and larger parameter models on top).
+                  Click any model below to select it in the menus (sorted with newer and larger models on top).
                 </p>
               </div>
               <button
@@ -1605,7 +1455,30 @@ export const SettingsModal = ({
               </button>
             </div>
 
-            <div className="p-5 overflow-y-auto space-y-5 flex-1">
+            <div
+              ref={recommendedScrollRef}
+              className="p-5 overflow-y-auto space-y-4 flex-1"
+            >
+              {recommendedAlert && (
+                <div className="theme-error-banner rounded-lg p-3.5 flex items-start justify-between gap-3 animate-in fade-in duration-150">
+                  <div className="flex items-start gap-2.5">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-bold text-xs uppercase tracking-wider error-title">{recommendedAlert.title}</h4>
+                      <p className="text-xs mt-0.5 font-mono leading-relaxed error-msg">{recommendedAlert.message}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setRecommendedAlert(null)}
+                    className="p-1 hover:opacity-80 transition-opacity"
+                    title="Dismiss"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+
               {RECOMMENDED_OLLAMA_MODELS.map((group) => (
                 <div key={group.family} className="bg-[#0d1117] border border-[#30363d] rounded-lg p-4 space-y-3">
                   <div className="border-b border-[#30363d] pb-2">
@@ -1613,25 +1486,41 @@ export const SettingsModal = ({
                     <p className="text-xs text-gray-400">{group.subtitle}</p>
                   </div>
                   <div className="space-y-2.5">
-                    {group.models.map((item) => (
-                      <div
-                        key={item.tag}
-                        className="bg-[#161b22] border border-[#30363d] rounded-md p-3 flex flex-col gap-1"
-                      >
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs font-bold text-white">
-                              {formatModelDisplayLabel(item.tag)}
-                            </span>
-                            <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider saved-item-badge">
-                              {item.tier}
-                            </span>
+                    {group.models.map((item) => {
+                      const isCurrSelected = selectedModel.toLowerCase() === item.tag.toLowerCase();
+                      const isInst = isOllamaRunning && isModelInstalled(item.tag);
+
+                      return (
+                        <button
+                          key={item.tag}
+                          type="button"
+                          onClick={() => handleSelectRecommendedModel(item.tag)}
+                          className={`w-full text-left bg-[#161b22] border rounded-md p-3 flex flex-col gap-1 transition-all cursor-pointer ${
+                            isCurrSelected
+                              ? 'saved-item-active shadow-sm'
+                              : 'border-[#30363d] hover:border-gray-500'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono text-xs font-bold text-white">
+                                {formatModelDisplayLabel(item.tag)}
+                              </span>
+                              <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider saved-item-badge">
+                                {item.tier}
+                              </span>
+                              {isInst && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider saved-item-badge">
+                                  Installed
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[11px] font-mono text-gray-400">{item.ram}</span>
                           </div>
-                          <span className="text-[11px] font-mono text-gray-400">{item.ram}</span>
-                        </div>
-                        <p className="text-xs text-gray-300 leading-relaxed mt-0.5">{item.desc}</p>
-                      </div>
-                    ))}
+                          <p className="text-xs text-gray-300 leading-relaxed mt-0.5">{item.desc}</p>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               ))}

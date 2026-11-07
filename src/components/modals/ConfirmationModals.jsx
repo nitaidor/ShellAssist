@@ -120,7 +120,7 @@ export const DeepTokenBreakdownModal = ({ isOpen, isLoading, onClose, onConfirmD
           Full Token Breakdown
         </h3>
         <p className="text-gray-300 text-sm mb-3 leading-relaxed">
-          Because generating detailed token explanations alongside code requires substantial response data (especially for large scripts, lightweight local models, or when initial token analysis is skipped in Settings), the AI only annotated <strong>part or none of the code</strong> during the initial pass.
+          Because generating detailed token explanations alongside code requires substantial response data (especially for large scripts or lightweight local models), or when choosing to <strong>Skip Initial Token Analysis (Fast Mode)</strong>, the AI only annotated <strong>part or none of the code</strong> during the initial pass.
         </p>
         <div className="p-3 rounded-md text-xs mb-5 leading-relaxed modal-warning-panel space-y-1.5">
           <p>
