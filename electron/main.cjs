@@ -234,33 +234,24 @@ ipcMain.handle('start-ollama', async () => {
   // Launch Ollama background server
   try {
     if (process.platform === 'win32') {
-      const { cliExe, appExe, dir } = getWinOllamaPaths();
+      const { cliExe, dir } = getWinOllamaPaths();
       if (process.env.PATH && !process.env.PATH.includes(dir)) {
         process.env.PATH = `${process.env.PATH};${dir}`;
       }
-      if (fs.existsSync(cliExe)) {
-        const child = spawn(cliExe, ['serve'], {
-          windowsHide: true,
-          detached: true,
-          stdio: 'ignore'
-        });
-        child.unref();
-      } else if (fs.existsSync(appExe)) {
-        const child = spawn(appExe, [], {
-          windowsHide: true,
-          detached: true,
-          stdio: 'ignore'
-        });
-        child.unref();
-      } else {
-        const child = spawn('ollama', ['serve'], {
-          windowsHide: true,
-          detached: true,
-          stdio: 'ignore',
-          shell: true
-        });
-        child.unref();
-      }
+
+      // Launch "ollama.exe serve" headlessly via Windows Script Host (wscript) with window style 0 (SW_HIDE).
+      // This completely suppresses console allocation, preventing any command prompt flashes,
+      // and avoids launching "Ollama app.exe" which could open interactive GUI/PowerShell windows.
+      const exeToRun = fs.existsSync(cliExe) ? cliExe : 'ollama.exe';
+      const vbsFile = path.join(os.tmpdir(), `launch_ollama_${Date.now()}.vbs`);
+      const vbsContent = `CreateObject("Wscript.Shell").Run """${exeToRun}"" serve", 0, False`;
+      fs.writeFileSync(vbsFile, vbsContent, 'utf8');
+
+      exec(`wscript.exe "${vbsFile}"`, { windowsHide: true }, () => {
+        setTimeout(() => {
+          try { fs.unlinkSync(vbsFile); } catch (e) {}
+        }, 3000);
+      });
     } else {
       const child = spawn('ollama', ['serve'], {
         detached: true,
@@ -313,7 +304,6 @@ async function resolveLatestModelTargetTag(baseName, digestHash = '') {
       const szTag = tagMatch[1].trim().toLowerCase();
       if (!szTag || szTag === 'latest' || szTag === 'cloud') continue;
 
-      // Only inspect the immediate row for this tag
       const rowSlice = block.substring(0, 1200).toLowerCase();
 
       // 1. Primary check: exact 12-character SHA-256 digest hash match (e.g. "009acb0d7fe1")
@@ -518,8 +508,8 @@ ipcMain.handle('start-session', async (_event, { shell, elevate }) => {
     '        "success" | Out-File -FilePath $statusFile -Encoding utf8',
     '      }',
     '    } catch {',
-    '      ($_ | Out-String -Width 160).Trim() | Out-File -FilePath $outFile -Encoding utf8',
-    '      "error" | Out-File -FilePath $statusFile -Encoding utf8',
+    '      ($_ | Out-String -Width 160).Trim() | Out-File -FilePath "' + outFile.replace(/\\/g, '\\\\') + '" -Encoding utf8',
+    '      "error" | Out-File -FilePath "' + statusFile.replace(/\\/g, '\\\\') + '" -Encoding utf8',
     '    }',
     '    Remove-Item $req.FullName -Force -ErrorAction SilentlyContinue',
     '  }',
