@@ -104,6 +104,7 @@ export default function App() {
       lightTheme: 'default',
       clockFormat: '12h',
       stopOllamaOnExit: false,
+      skipTokenAnalysis: false,
       ...(persisted.current?.settings || {}),
       localEndpoint: persisted.current?.settings?.localEndpoint || 'http://localhost:11434',
       localModel: persisted.current?.settings?.localModel || 'gemma4:e4b'

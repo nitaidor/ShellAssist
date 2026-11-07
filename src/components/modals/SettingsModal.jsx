@@ -12,7 +12,8 @@ import {
   Play,
   Square,
   Download,
-  Ban
+  Ban,
+  HelpCircle
 } from 'lucide-react';
 import CustomSelect from '../common/CustomSelect';
 
@@ -53,6 +54,136 @@ const KNOWN_FAMILY_CASING = {
   qWQ: 'Qwen',
   qwq: 'Qwen'
 };
+
+// Recommended models categorized by family, sorted with newer generations and larger parameter models on top
+const RECOMMENDED_OLLAMA_MODELS = [
+  {
+    family: 'Qwen (Alibaba)',
+    subtitle: 'Top recommendation for shell scripting, PowerShell, Bash & coding accuracy',
+    models: [
+      {
+        tag: 'qwen3:8b',
+        ram: '~5.2 GB RAM',
+        tier: '16 GB RAM',
+        desc: 'Strong all-rounder for both command generation and natural-language explanations.'
+      },
+      {
+        tag: 'qwen3:4b',
+        ram: '~2.6 GB RAM',
+        tier: '8–16 GB RAM',
+        desc: 'Fast, modern compact model for everyday commands and script analysis.'
+      },
+      {
+        tag: 'qwen2.5-coder:14b',
+        ram: '~9.0 GB RAM',
+        tier: '32 GB+ RAM',
+        desc: 'Near-cloud-level complex script generation and multi-step debugging.'
+      },
+      {
+        tag: 'qwen2.5-coder:7b',
+        ram: '~4.8 GB RAM',
+        tier: 'Best Overall (16 GB RAM)',
+        desc: 'Exceptional accuracy with PowerShell cmdlets, Bash pipelines, and strict JSON formatting.'
+      },
+      {
+        tag: 'qwen2.5-coder:3b',
+        ram: '~2.2 GB RAM',
+        tier: 'Best Lightweight / Fast',
+        desc: 'Near-instant generation on laptops and CPUs; ideal for quick everyday commands.'
+      }
+    ]
+  },
+  {
+    family: 'Gemma (Google)',
+    subtitle: 'Fast edge architecture & clear code explanations',
+    models: [
+      {
+        tag: 'gemma4:12b',
+        ram: '~7.5 GB RAM',
+        tier: '16–32 GB RAM',
+        desc: 'High-capacity model for complex script writing and deep error diagnosis.'
+      },
+      {
+        tag: 'gemma4:e4b',
+        ram: '~3.2 GB RAM',
+        tier: 'Balanced Default',
+        desc: 'Fast and reliable at structured JSON output and explaining code in the Analyzer.'
+      },
+      {
+        tag: 'gemma4:e2b',
+        ram: '~1.8 GB RAM',
+        tier: 'Ultra-Lightweight',
+        desc: 'Runs smoothly even on older laptops, integrated graphics, or low-RAM systems.'
+      }
+    ]
+  },
+  {
+    family: 'Llama (Meta)',
+    subtitle: 'Dependable instruction following & general shell tasks',
+    models: [
+      {
+        tag: 'llama3.2:3b',
+        ram: '~2.0 GB RAM',
+        tier: '8–16 GB RAM',
+        desc: 'Fast and compact for quick everyday terminal commands with minimal memory usage.'
+      },
+      {
+        tag: 'llama3.1:8b',
+        ram: '~4.7 GB RAM',
+        tier: '16 GB RAM',
+        desc: 'Proven 8B workhorse for general-purpose CLI assistance.'
+      }
+    ]
+  },
+  {
+    family: 'Mistral (Mistral AI)',
+    subtitle: 'Dedicated workstation coding & snappy 7B models',
+    models: [
+      {
+        tag: 'codestral:22b',
+        ram: '~13.0 GB RAM',
+        tier: '32 GB+ RAM',
+        desc: 'Mistral’s flagship dedicated code and CLI model for high-end workstations.'
+      },
+      {
+        tag: 'mistral:7b',
+        ram: '~4.1 GB RAM',
+        tier: '16 GB RAM',
+        desc: 'Fast and dependable 7B model on mid-range GPUs.'
+      }
+    ]
+  },
+  {
+    family: 'Phi (Microsoft)',
+    subtitle: 'High reasoning density in a compact footprint',
+    models: [
+      {
+        tag: 'phi4:14b',
+        ram: '~9.0 GB RAM',
+        tier: '24–32 GB+ RAM',
+        desc: 'Advanced logic and reasoning for diagnosing tricky terminal errors.'
+      },
+      {
+        tag: 'phi4-mini:3.8b',
+        ram: '~2.5 GB RAM',
+        tier: '8–16 GB RAM',
+        desc: 'Compact reasoning and script analysis for laptops.'
+      }
+    ]
+  },
+  {
+    family: 'DeepSeek',
+    subtitle: 'Mixture-of-Experts coding specialist',
+    models: [
+      {
+        tag: 'deepseek-coder-v2:16b',
+        ram: '~8.9 GB RAM',
+        tier: '16–32 GB RAM',
+        desc: 'Fast MoE architecture tailored specifically for code and shell scripts.'
+      }
+    ]
+  }
+];
 
 // Dynamically derives the Model Family name directly from any web or local model tag
 const inferFamilyForModel = (modelTag = '') => {
@@ -97,6 +228,15 @@ const formatModelDisplayLabel = (rawTag = '') => {
   return `${formattedBase}${formattedSize} (${clean})`;
 };
 
+// Formats byte size from /api/tags into human-readable disk size (e.g. "3.2 GB" or "850 MB")
+const formatDiskSize = (bytes) => {
+  if (!bytes || typeof bytes !== 'number' || bytes <= 0) return '';
+  const gb = bytes / (1024 ** 3);
+  if (gb >= 1) return `${gb.toFixed(1)} GB`;
+  const mb = bytes / (1024 ** 2);
+  return `${Math.max(1, Math.round(mb))} MB`;
+};
+
 // Extracts major/minor version number from the base model name (e.g., "gemma4" -> 4, "qwen3.5" -> 3.5)
 const extractModelVersion = (baseName = '') => {
   const match = baseName.match(/(\d+(?:\.\d+)?)/);
@@ -132,11 +272,12 @@ export const SettingsModal = ({
   onToggleTerminalIntegration
 }) => {
   const [newKeyInput, setNewKeyInput] = useState('');
+  const [showRecommendedModal, setShowRecommendedModal] = useState(false);
 
   // Ollama Manager State
   const [isOllamaRunning, setIsOllamaRunning] = useState(false);
   const [ollamaActionState, setOllamaActionState] = useState('idle'); // 'idle' | 'starting' | 'stopping'
-  // rawInstalledEntries stores [{ name: 'gemma4:e4b', digest: '009acb0d7fe1...', paramSize: '4.3B' }]
+  // rawInstalledEntries stores [{ name: 'gemma4:e4b', digest: '009acb0d7fe1...', paramSize: '4.3B', diskBytes: 3338801804 }]
   const [rawInstalledEntries, setRawInstalledEntries] = useState([]);
   const [onlineCatalogModels, setOnlineCatalogModels] = useState([]);
   // latestMatches maps standalone installed ':latest' tags to their hash-matched numbered tag, e.g. { 'gemma4:latest': 'gemma4:e4b' }
@@ -152,6 +293,19 @@ export const SettingsModal = ({
 
   const pullAbortRef = useRef(null);
   const currentProvider = settings?.apiProvider || 'gemini';
+
+  // Close only the Recommended Models popup on Escape when it is open
+  useEffect(() => {
+    if (!showRecommendedModal) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setShowRecommendedModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [showRecommendedModal]);
 
   const getCleanEndpoint = () => {
     return String(settings?.localEndpoint || 'http://localhost:11434').trim().replace(/\/+$/, '');
@@ -368,7 +522,7 @@ export const SettingsModal = ({
     }
   }, [rawInstalledEntries, runningModel, latestMatches, isOllamaRunning]);
 
-  // Sync Ollama server status, installed models (with digests), running model, and web catalog
+  // Sync Ollama server status, installed models (with digests & disk sizes), running model, and web catalog
   const syncOllamaState = async (customEndpoint = null) => {
     const endpoint = customEndpoint || getCleanEndpoint();
     setOllamaError(null);
@@ -388,11 +542,12 @@ export const SettingsModal = ({
         const rawList = Array.isArray(tagsData?.models) ? tagsData.models : [];
         detectedEntries = rawList
           .map((m) => {
-            if (typeof m === 'string') return { name: m, digest: '', paramSize: '' };
+            if (typeof m === 'string') return { name: m, digest: '', paramSize: '', diskBytes: 0 };
             return {
               name: m?.name || m?.model || '',
               digest: m?.digest || '',
-              paramSize: m?.details?.parameter_size || ''
+              paramSize: m?.details?.parameter_size || '',
+              diskBytes: typeof m?.size === 'number' ? m.size : 0
             };
           })
           .filter((e) => Boolean(e.name));
@@ -430,8 +585,6 @@ export const SettingsModal = ({
           const rawRunningName = typeof first === 'string' ? first : (first?.name || first?.model || '');
           const runningDigest = typeof first === 'object' ? first?.digest : '';
 
-          // If the running model is a duplicate ':latest' that was deduplicated in favor of its numbered tag (e.g. gemma4:e4b),
-          // map it to the deduplicated numbered tag so the menus display it cleanly
           if (rawRunningName.toLowerCase().endsWith(':latest') && !deduplicatedNames.some((n) => n.toLowerCase() === rawRunningName.toLowerCase())) {
             const matchingNumbered = detectedEntries.find(
               (e) =>
@@ -714,7 +867,6 @@ export const SettingsModal = ({
       pullAbortRef.current = null;
       setInstallProgress(null);
 
-      // Refresh installed entries from /api/tags so we have the exact digest hash for the newly pulled model
       await syncOllamaState(endpoint);
       await startSelectedModelInMemory(target);
     } catch (err) {
@@ -755,7 +907,6 @@ export const SettingsModal = ({
   };
 
   // Uninstalls the selected model AND any duplicate ':latest' alias sharing its exact digest hash
-  // so disk space is completely freed and ':latest' doesn't pop back up!
   const handleUninstallModel = async () => {
     if (!isOllamaRunning || !selectedUninstallModel || modelActionState !== 'idle' || ollamaActionState !== 'idle') return;
     if (isTagCurrentlyRunning(selectedUninstallModel)) return;
@@ -770,7 +921,6 @@ export const SettingsModal = ({
       const targetEntry = rawInstalledEntries.find((e) => e.name.toLowerCase() === target.toLowerCase());
       const targetDigest = targetEntry?.digest || '';
 
-      // Find all tags to remove: the target itself + any duplicate ':latest' tag sharing the exact same digest hash
       const tagsToDelete = rawInstalledEntries
         .filter((e) => {
           const isExactTarget = e.name.toLowerCase() === target.toLowerCase();
@@ -968,7 +1118,7 @@ export const SettingsModal = ({
       }))
     : [{ value: selectedModel || 'N/A', label: isOllamaRunning ? 'Loading models...' : 'Start Ollama to load models' }];
 
-  // Build Uninstall dropdown options (deduplicated installed models, with running model grayed out & disabled)
+  // Build Uninstall dropdown options (deduplicated installed models with disk size badge, and running model grayed out & disabled)
   const uninstallOptions = installedModels.length > 0
     ? sortModelsList(
         installedModels.map((tag) => ({
@@ -977,10 +1127,16 @@ export const SettingsModal = ({
         }))
       ).map((m) => {
         const isCurrentlyRunning = isTagCurrentlyRunning(m.value);
+        const entry = rawInstalledEntries.find((e) => e.name.toLowerCase() === m.value.toLowerCase());
+        const sizeLabel = formatDiskSize(entry?.diskBytes);
+        const combinedBadge = isCurrentlyRunning
+          ? (sizeLabel ? `${sizeLabel} • Running` : 'Running')
+          : (sizeLabel || null);
+
         return {
           value: m.value,
           label: m.label,
-          badge: isCurrentlyRunning ? 'Running' : null,
+          badge: combinedBadge,
           disabled: isCurrentlyRunning
         };
       })
@@ -1207,9 +1363,20 @@ export const SettingsModal = ({
             {currentProvider === 'ollama' && (
               <div className="bg-[#0d1117] p-4 rounded-md border border-[#30363d] animate-in fade-in space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Ollama Server & Model Selection
-                  </label>
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <label className="block text-sm font-medium text-gray-300">
+                      Ollama Server & Model Selection
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowRecommendedModal(true)}
+                      title="Recommended Local Models"
+                      aria-label="Recommended Local Models"
+                      className="modal-close-btn p-1 rounded-full text-gray-400 hover:text-white transition-colors"
+                    >
+                      <HelpCircle className="w-4 h-4" />
+                    </button>
+                  </div>
 
                   {/* Row 1: Start/Stop Ollama + Model Family Dropdown + Model Dropdown */}
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center">
@@ -1318,7 +1485,7 @@ export const SettingsModal = ({
                   </p>
                 )}
 
-                {/* Row 3: Uninstall Installed Model (Running model is grayed out and locked) */}
+                {/* Row 3: Uninstall Installed Model (Shows disk size badge; running model is grayed out and locked) */}
                 <div className="pt-3 border-t border-[#30363d]">
                   <label className="block text-xs font-medium text-gray-400 mb-2">
                     Manage Installed Models
@@ -1368,6 +1535,24 @@ export const SettingsModal = ({
                 </div>
               </div>
             )}
+
+            {/* Global Option to Skip Initial Token Analysis (Fast Mode) */}
+            <div className="mt-4">
+              <label className="flex items-center justify-between bg-[#0d1117] p-4 rounded-md border border-[#30363d] cursor-pointer hover:border-gray-500 transition-colors">
+                <div>
+                  <p className="font-medium text-gray-200 text-sm">Skip Initial Token Analysis (Fast Mode)</p>
+                  <p className="text-xs text-gray-500 max-w-lg mt-1">
+                    Skips generating the token-by-token hover breakdown during initial command generation to significantly speed up lightweight local models and rate-limited APIs. You can still trigger the full token breakdown anytime by clicking <strong>Full Breakdown Available</strong>.
+                  </p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={Boolean(settings.skipTokenAnalysis)}
+                  onChange={(e) => setSettings((prev) => ({ ...prev, skipTokenAnalysis: e.target.checked }))}
+                  className="custom-checkbox shrink-0 ml-3"
+                />
+              </label>
+            </div>
           </section>
 
           {/* Terminal Integration Section */}
@@ -1387,6 +1572,83 @@ export const SettingsModal = ({
           </section>
         </div>
       </div>
+
+      {/* Recommended Local Models Popup Modal */}
+      {showRecommendedModal && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowRecommendedModal(false);
+          }}
+        >
+          <div
+            className="bg-[#161b22] border border-[#30363d] w-full max-w-2xl rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#30363d] bg-[#0d1117]">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <HelpCircle className="w-5 h-5 header-logo shrink-0" /> Recommended Local Models for ShellAssist
+                </h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Sorted by model family and parameter capacity (newer generations and larger parameter models on top).
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRecommendedModal(false)}
+                aria-label="Close recommendations"
+                className="modal-close-btn p-1.5"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-5 flex-1">
+              {RECOMMENDED_OLLAMA_MODELS.map((group) => (
+                <div key={group.family} className="bg-[#0d1117] border border-[#30363d] rounded-lg p-4 space-y-3">
+                  <div className="border-b border-[#30363d] pb-2">
+                    <h4 className="text-sm font-bold text-white">{group.family}</h4>
+                    <p className="text-xs text-gray-400">{group.subtitle}</p>
+                  </div>
+                  <div className="space-y-2.5">
+                    {group.models.map((item) => (
+                      <div
+                        key={item.tag}
+                        className="bg-[#161b22] border border-[#30363d] rounded-md p-3 flex flex-col gap-1"
+                      >
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-bold text-white">
+                              {formatModelDisplayLabel(item.tag)}
+                            </span>
+                            <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider saved-item-badge">
+                              {item.tier}
+                            </span>
+                          </div>
+                          <span className="text-[11px] font-mono text-gray-400">{item.ram}</span>
+                        </div>
+                        <p className="text-xs text-gray-300 leading-relaxed mt-0.5">{item.desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="px-5 py-3 border-t border-[#30363d] bg-[#0d1117] flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowRecommendedModal(false)}
+                className="px-4 py-1.5 rounded-md text-xs font-semibold btn-modal-cancel"
+              >
+                Close Guide
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -280,17 +280,23 @@ export const fetchCommandGeneration = async (requestText, previousTurns = [], ct
   const cleanShell = (ctx?.shell || 'PowerShell').replace(/\s*\(Elevated\)/i, '').trim();
   const cleanOs = (ctx?.os || 'Windows').replace(/\s*\(Simulated\)/i, '').trim();
   const isScript = ctx?.type === 'Script';
+  const skipTokens = Boolean(settings?.skipTokenAnalysis);
 
   const typeRule = isScript
     ? `STRUCTURAL FORMAT (MANDATORY): The user selected "Script". You MUST generate standard, readable, multi-line indented code with newlines and proper spacing. Do NOT compress the code into a single line or chain it with semicolons.`
     : `STRUCTURAL FORMAT (MANDATORY): The user selected "Command". You MUST provide a SINGLE-LINE command string suitable for immediate terminal execution (using pipes '|', operators '&&' or ';', or inline loops). Do NOT use multi-line line breaks in the command string.`;
 
-  const tokenRule = `TOKENIZATION RULE (CRITICAL): The "tokens" array must break "command" down into GRANULAR, ATOMIC tokens in sequential order from start to finish: (1) individual cmdlets/commands (e.g. "Get-VM"), (2) individual flags/parameters (e.g. "-ComputerName"), (3) individual variables (e.g. "$Server"), (4) individual keywords (e.g. "if", "foreach"), (5) individual operators/delimiters (e.g. "=", "|", ";", "{"), (6) string/number literals, and (7) entire comments (e.g. "# This is a comment"). Treat an entire comment block as a single token. NEVER group a multi-token block, loop body, or pipeline into one giant token, and NEVER use "..." placeholders.`;
+  const tokenRule = skipTokens
+    ? `TOKENIZATION RULE (FAST MODE): Do NOT generate token-by-token explanations on this pass. You MUST return an empty array [] for "tokens".`
+    : `TOKENIZATION RULE (CRITICAL): The "tokens" array must break "command" down into GRANULAR, ATOMIC tokens in sequential order from start to finish: (1) individual cmdlets/commands (e.g. "Get-VM"), (2) individual flags/parameters (e.g. "-ComputerName"), (3) individual variables (e.g. "$Server"), (4) individual keywords (e.g. "if", "foreach"), (5) individual operators/delimiters (e.g. "=", "|", ";", "{"), (6) string/number literals, and (7) entire comments (e.g. "# This is a comment"). Treat an entire comment block as a single token. NEVER group a multi-token block, loop body, or pipeline into one giant token, and NEVER use "..." placeholders.`;
+
   const nonInteractiveRule = `IMPORTANT: Because commands execute in a non-interactive background bridge that cannot accept mid-execution stdin keystrokes (like [Y/N] prompts), ALWAYS append non-interactive confirmation flags where applicable (e.g., -Confirm:$false, -Force, -y, --yes, --no-input, /y) so the command never hangs waiting for user confirmation.`;
   
   const elevationRule = `Evaluate the complete command and its exact subcommands/flags on ${cleanOs}, and set "requiresElevation" to true ONLY if executing it actually requires Administrator, root, or elevated privileges (or false if it can run under standard user permissions).`;
 
-  const systemPrompt = `You are an expert ${cleanShell} assistant on ${cleanOs}. ${typeRule} ${tokenRule} ${nonInteractiveRule} ${elevationRule} Return STRICTLY a JSON object matching this schema: { "summary": "...", "overallExplanation": "...", "command": "...", "tokens": [ { "text": "...", "explanation": "...", "context": "..." } ], "hasAlternative": false, "alternativeText": "", "riskLevel": "Low", "riskExplanation": "", "requiresElevation": false }`;
+  const schemaTokens = skipTokens ? `[]` : `[ { "text": "...", "explanation": "...", "context": "..." } ]`;
+
+  const systemPrompt = `You are an expert ${cleanShell} assistant on ${cleanOs}. ${typeRule} ${tokenRule} ${nonInteractiveRule} ${elevationRule} Return STRICTLY a JSON object matching this schema: { "summary": "...", "overallExplanation": "...", "command": "...", "tokens": ${schemaTokens}, "hasAlternative": false, "alternativeText": "", "riskLevel": "Low", "riskExplanation": "", "requiresElevation": false }`;
 
   const userMessages = [];
   previousTurns.forEach(t => {
@@ -300,7 +306,11 @@ export const fetchCommandGeneration = async (requestText, previousTurns = [], ct
   userMessages.push({ role: "user", text: requestText });
 
   const raw = await callAiProvider(systemPrompt, userMessages, settings);
-  return cleanJsonResponse(raw);
+  const parsed = cleanJsonResponse(raw);
+  if (skipTokens && parsed && typeof parsed === 'object') {
+    parsed.tokens = [];
+  }
+  return parsed;
 };
 
 export const fetchDeepTokenBreakdown = async (command, ctx, settingsOrKey = '') => {

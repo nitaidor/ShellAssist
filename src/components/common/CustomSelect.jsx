@@ -51,7 +51,7 @@ export const CustomSelect = ({
       {isOpen && !disabled && (
         <div
           ref={menuListRef}
-          className={`absolute ${alignRight ? 'right-0' : 'left-0'} mt-1 min-w-full w-max max-w-[380px] max-h-60 overflow-y-auto bg-[#161b22] border border-[#30363d] rounded-md shadow-2xl z-[100] py-1 animate-in fade-in zoom-in-95 duration-100`}
+          className={`absolute ${alignRight ? 'right-0' : 'left-0'} mt-1 min-w-full w-max max-w-[380px] max-h-64 overflow-y-auto bg-[#161b22] border border-[#30363d] rounded-md shadow-2xl z-[100] py-1 animate-in fade-in zoom-in-95 duration-100`}
         >
           {options.map((opt, idx) => {
             const optVal = getOptionValue(opt);
