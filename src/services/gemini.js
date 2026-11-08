@@ -365,7 +365,7 @@ export const fetchCommandGeneration = async (requestText, previousTurns = [], ct
   const elevationRule = `Evaluate the complete command and its exact subcommands/flags on ${cleanOs}, and set "requiresElevation" to true if executing it requires Administrator, root, sudo, or cluster/cloud/daemon-level administrative privileges (such as modifying system services, firewall rules, network catalogs, system packages, Cloud IAM roles/policies/users like 'aws iam detach-role-policy', 'aws iam attach-role-policy', 'aws iam delete-*', infrastructure state locks like 'terraform force-unlock', or destructive/cluster-admin commands like 'docker system prune', 'systemctl restart', 'kubectl drain', 'kubectl cordon', 'helm uninstall'), or false if it is a standard user or read-only command.`;
 
   const localPlatformAndScriptHint = isLocalOllama
-    ? `${cleanOs.toLowerCase() === 'macos' ? `PLATFORM RULE (macOS): Use native macOS utilities (e.g. 'sysctl -n machdep.cpu.brand_string', 'sysctl -n hw.ncpu', 'vm_stat', 'diskutil', 'scutil', 'brew') rather than Linux-only commands like 'lscpu', 'free', or 'apt'. ` : ''}${(isScript && !isAnalyze) ? `LOCAL SCRIPT RULE (MANDATORY): Because the user selected "Script", the "command" field MUST be a complete multi-line ${cleanShell} script containing multiple lines separated by "\\n" newline characters (never a single-line command or a semicolon-compressed one-liner). ` : ''}`
+    ? `${cleanOs.toLowerCase() === 'macos' ? `PLATFORM RULE (macOS): Use native macOS utilities (e.g. 'sysctl -n machdep.cpu.brand_string', 'sysctl -n hw.ncpu', 'vm_stat', 'diskutil', 'scutil', 'brew') rather than Linux-only commands like 'lscpu', 'free', or 'apt'. ` : ''}${/bash|zsh|sh/i.test(cleanShell) ? `SHELL SYNTAX RULE: In ${cleanShell}, define functions as 'func_name() { ... }'. NEVER use the Python 'def' keyword. ` : ''}${(isScript && !isAnalyze) ? `LOCAL SCRIPT RULE (MANDATORY): Because the user selected "Script", the "command" field MUST be a complete multi-line ${cleanShell} script containing multiple lines separated by "\\n" newline characters (never a single-line command or a semicolon-compressed one-liner). ` : ''}FLAG DISCIPLINE: Generate only the exact command and flags necessary for the user's objective. Do NOT append unrequested destructive or optional flags (such as '--all', '--volumes', '--keep-history', or '--no-cache') unless explicitly requested. CONCISENESS RULE: Keep "summary", "overallExplanation", and "riskExplanation" concise (1-2 sentences each) to minimize latency. `
     : ``;
 
   const buildSystemPrompt = (useSkipTokens) => {
@@ -400,6 +400,20 @@ export const fetchCommandGeneration = async (requestText, previousTurns = [], ct
   }
 
   if (isLocalOllama && parsed && typeof parsed === 'object') {
+    // 1. Strip accidental markdown code fence formatting from command and alternativeText
+    if (typeof parsed.command === 'string') {
+      parsed.command = parsed.command.replace(/^```[a-zA-Z0-9_-]*\r?\n?/, '').replace(/\r?\n?```\s*$/, '').trim();
+    }
+    if (typeof parsed.alternativeText === 'string') {
+      parsed.alternativeText = parsed.alternativeText.replace(/^```[a-zA-Z0-9_-]*\r?\n?/, '').replace(/\r?\n?```\s*$/, '').trim();
+    }
+
+    // 2. Shell script syntax linting (e.g. fix Python 'def' in bash/zsh/sh scripts)
+    if (typeof parsed.command === 'string' && /bash|zsh|sh/i.test(cleanShell)) {
+      parsed.command = parsed.command.replace(/\bdef\s+([A-Za-z_][A-Za-z0-9_-]*)\s*\(\)\s*\{/g, '$1() {');
+    }
+
+    // 3. Semicolon-chain expansion for scripts that returned single-line chained code
     if (isScript && !isAnalyze && typeof parsed.command === 'string') {
       let cmdTrim = parsed.command.trim();
       if (!cmdTrim.includes('\n') && cmdTrim.includes(';')) {
@@ -410,33 +424,24 @@ export const fetchCommandGeneration = async (requestText, previousTurns = [], ct
           .replace(/;\s+(?=[A-Za-z0-9_$/.-])/g, '\n');
         parsed.command = cmdTrim;
       }
-      if (!parsed.command.trim().includes('\n')) {
-        try {
-          const retryMessages = [
-            ...userMessages.slice(0, -1),
-            {
-              role: "user",
-              text: `${requestText}\n\nIMPORTANT: You MUST return a complete multi-line ${cleanShell} script/configuration in the "command" field with multiple lines separated by "\\n" newline characters (at least 4 lines). Do NOT return a single-line command.`
-            }
-          ];
-          const retryRaw = await callAiProvider(buildSystemPrompt(true), retryMessages, settings);
-          const retryParsed = cleanJsonResponse(retryRaw);
-          if (retryParsed && typeof retryParsed.command === 'string' && retryParsed.command.trim().includes('\n')) {
-            parsed.command = retryParsed.command;
-            if (retryParsed.summary) parsed.summary = retryParsed.summary;
-            if (retryParsed.overallExplanation) parsed.overallExplanation = retryParsed.overallExplanation;
-          }
-        } catch {}
-      }
     }
 
-    if (!parsed.requiresElevation && typeof parsed.command === 'string') {
+    // 4. Deterministic elevation check and contradictory risk assessment reconciliation
+    if (typeof parsed.command === 'string') {
       const cmdStr = parsed.command;
       const riskText = `${parsed.riskExplanation || ''}`;
-      const adminCmdPattern = /\b(sudo|Start-MpScan|WindowsDefenderScheduledScan|New-NetFirewallRule|Set-NetFirewallProfile|Stop-Service|Start-Service|Restart-Service|Set-Service|bcdedit|diskpart|sfc\s+\/scannow|DISM\b|wevtutil\s+cl|netsh\s+(int|interface\s+ip\s+(reset|set)|advfirewall\s+(reset|set)|winsock\s+reset)|systemctl\s+(restart|stop|start|enable|disable|mask)|service\s+\S+\s+(restart|stop|start)|ufw\s+(allow|deny|enable|disable|delete|reset)|iptables|usermod|useradd|userdel|groupadd|chown\s+-R|chmod\s+.*\/etc\/|fdisk|mkfs|parted|lvextend|lvcreate|vgcreate|sysctl\s+-w|dscacheutil\s+-flushcache|killall\s+-HUP\s+mDNSResponder|scutil\s+--set|spctl\s+--master-disable|launchctl\s+(load|unload|bootstrap|bootout)\s+\/Library|docker\s+system\s+prune|kubectl\s+(drain|cordon|uncordon|taint|delete\s+node|create\s+clusterrolebinding)|helm\s+uninstall|terraform\s+(force-unlock|destroy)|aws\s+iam\s+(detach-|attach-|delete-|create-|put-|update-))\b/i;
+      const adminCmdPattern = /\b(sudo|Start-MpScan|MpCmdRun|WindowsDefender|Update-MpSignature|Set-MpPreference|Add-MpPreference|Remove-MpPreference|New-NetFirewallRule|Set-NetFirewallProfile|Stop-Service|Start-Service|Restart-Service|Set-Service|bcdedit|diskpart|sfc\s+\/scannow|DISM\b|wevtutil\s+cl|netsh\s+(int|interface\s+ip\s+(reset|set)|advfirewall\s+(reset|set)|winsock\s+reset)|systemctl\s+(restart|stop|start|enable|disable|mask)|service\s+\S+\s+(restart|stop|start)|ufw\s+(allow|deny|enable|disable|delete|reset)|iptables|usermod|useradd|userdel|groupadd|chown\s+-R|chmod\s+.*\/etc\/|fdisk|mkfs|parted|lvextend|lvcreate|vgcreate|sysctl\s+-w|dscacheutil\s+-flushcache|killall\s+-HUP\s+mDNSResponder|scutil\s+--set|spctl\s+--master-disable|launchctl\s+(load|unload|bootstrap|bootout)\s+\/Library|docker\s+system\s+prune|kubectl\s+(drain|cordon|uncordon|taint|delete\s+node|create\s+clusterrolebinding)|helm\s+uninstall|terraform\s+(force-unlock|destroy)|aws\s+iam\s+(detach-|attach-|delete-|create-|put-|update-))\b/i;
       const adminTextPattern = /\b(requires\s+(administrator|admin|root|elevated|sudo|cluster-admin)|run\s+as\s+administrator|elevated\s+privileges\s+required)\b/i;
-      if (adminCmdPattern.test(cmdStr) || (!isInteractiveSession && adminTextPattern.test(riskText))) {
+      if (!parsed.requiresElevation && (adminCmdPattern.test(cmdStr) || (!isInteractiveSession && adminTextPattern.test(riskText)))) {
         parsed.requiresElevation = true;
+      }
+      if (parsed.requiresElevation) {
+        if (/does\s+not\s+require\s+(elevated|administrator|admin|root|sudo)/i.test(riskText) || /is\s+safe\s+and\s+does\s+not\s+require/i.test(riskText)) {
+          parsed.riskExplanation = "Executing this administrative action requires elevated / administrator privileges.";
+        }
+        if (!parsed.riskLevel || parsed.riskLevel === 'Low') {
+          parsed.riskLevel = 'Medium';
+        }
       }
     }
   }
@@ -523,8 +528,9 @@ export const fetchCommandSimulation = async (command, ctx, sessionTranscript = "
   const cleanOs = (ctx?.os || 'Windows').replace(/\s*\(Simulated\)/i, '').trim();
   const isElevated = Boolean(ctx?.isElevated);
   const isLocalOllama = settings?.apiProvider === 'ollama';
+  const todayDateStr = new Date().toISOString().split('T')[0];
   const localSimRule = isLocalOllama
-    ? `\nLOCAL SIMULATION RULES (CRITICAL): 1. Keep "terminalOutput" concise and realistic (maximum 8 to 10 sample rows for directory, file, process, or network listings) so the JSON output never truncates. 2. Read-only inspection and query commands — including 'netsh interface ipv4 show ...', 'netsh wlan show ...', 'netsh advfirewall show ...', 'ipconfig', 'route print', 'arp -a', 'Get-NetAdapter', 'Get-NetIPAddress', 'Get-ChildItem', 'Get-Process', 'Get-Service', 'ls', 'du', 'df', 'ps', 'lsof' — do NOT require elevation and MUST succeed with "status": "success" even when Elevated/Admin Privileges is 'No'.`
+    ? `\nLOCAL SIMULATION RULES (CRITICAL): 1. Current simulated system date is ${todayDateStr}. When generating file dates or timestamps, use realistic recent dates within 2026. 2. NEVER output literal placeholders or bracketed templates like '[YourHostName]', '{InterfaceName}', '{DefaultGateway}', or '<path>'. Output realistic, concrete hostnames, adapter names (e.g. 'Ethernet', 'Wi-Fi'), concrete IP addresses (e.g. '192.168.1.100', '192.168.1.1'), and valid tabular output. 3. Keep "terminalOutput" concise and realistic (maximum 6 to 10 sample rows) so the JSON output never truncates. 4. Read-only inspection and query commands — including 'netsh interface ipv4 show ...', 'netsh wlan show ...', 'netsh advfirewall show ...', 'ipconfig', 'route print', 'arp -a', 'Get-NetAdapter', 'Get-NetIPAddress', 'Get-ChildItem', 'Get-Process', 'Get-Service', 'ls', 'du', 'df', 'ps', 'lsof' — do NOT require elevation and MUST succeed with "status": "success" even when Elevated/Admin Privileges is 'No'.`
     : ``;
 
   const systemPrompt = `You are a realistic terminal execution engine simulating ${cleanShell} on ${cleanOs} (Elevated/Admin Privileges: ${isElevated ? 'Yes' : 'No'}). 
