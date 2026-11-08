@@ -49,10 +49,26 @@ export const ensureTokenSpacing = (tokens = [], rawCommand = '') => {
 
   for (let i = 0; i < tokens.length; i++) {
     const cur = tokens[i];
-    // Skip empty or pure-whitespace/newline tokens so indentation is never hoverable
-    if (!cur || !cur.text || !cur.text.trim()) continue;
+    // Skip nullish tokens
+    if (!cur) continue;
 
-    const tokenText = cur.text.trim();
+    // Defensively unwrap nested text or non-string text produced by small local models
+    let tokenText = cur.text;
+    let tokenExplanation = cur.explanation;
+    let tokenContext = cur.context;
+
+    if (typeof tokenText === 'object' && tokenText !== null) {
+      tokenExplanation = tokenExplanation || tokenText.explanation;
+      tokenContext = tokenContext || tokenText.context;
+      tokenText = tokenText.text;
+    }
+    if (typeof tokenText !== 'string') {
+      tokenText = tokenText != null ? String(tokenText) : '';
+    }
+
+    tokenText = tokenText.trim();
+    if (!tokenText) continue;
+
     const foundIdx = cleanCmd.indexOf(tokenText, cmdCursor);
 
     // If the token does not exist at or after cmdCursor, skip it to prevent desyncing cmdCursor
@@ -79,6 +95,8 @@ export const ensureTokenSpacing = (tokens = [], rawCommand = '') => {
     repaired.push({
       ...cur,
       text: tokenText,
+      explanation: typeof tokenExplanation === 'string' ? tokenExplanation : (tokenExplanation ? String(tokenExplanation) : 'N/A'),
+      context: typeof tokenContext === 'string' ? tokenContext : (tokenContext ? String(tokenContext) : 'N/A'),
       isWhitespace: false
     });
 

@@ -448,8 +448,28 @@ export const fetchCommandGeneration = async (requestText, previousTurns = [], ct
 
   if (skipTokens && parsed && typeof parsed === 'object') {
     parsed.tokens = [];
-  } else if (parsed && typeof parsed.command === 'string' && Array.isArray(parsed.tokens) && parsed.tokens.length > 0) {
-    const cleanCmd = parsed.command.trim();
+  } else if (parsed && typeof parsed === 'object' && Array.isArray(parsed.tokens)) {
+    // Sanitize any nested or non-string tokens from local models
+    parsed.tokens = parsed.tokens.map(tk => {
+      if (!tk) return null;
+      let text = tk.text;
+      let explanation = tk.explanation;
+      let context = tk.context;
+      if (typeof text === 'object' && text !== null) {
+        if (!explanation) explanation = text.explanation;
+        if (!context) context = text.context;
+        text = text.text;
+      }
+      if (typeof text !== 'string') text = text != null ? String(text) : '';
+      return {
+        ...tk,
+        text,
+        explanation: typeof explanation === 'string' ? explanation : String(explanation ?? ''),
+        context: typeof context === 'string' ? context : String(context ?? '')
+      };
+    }).filter(tk => tk && tk.text.trim().length > 0);
+
+    const cleanCmd = typeof parsed.command === 'string' ? parsed.command.trim() : '';
     const cmdLines = cleanCmd.split(/\r?\n/);
     const maxInitialLines = (isLocalOllama && isScript) ? 6 : 30;
     if (cmdLines.length > maxInitialLines) {
@@ -505,7 +525,25 @@ Return STRICTLY a JSON object matching this schema:
   const userMessages = [{ role: "user", text: `Provide an exhaustive atomic token breakdown for this entire code block:\n\n${command}` }];
   const raw = await callAiProvider(systemPrompt, userMessages, settings);
   const parsed = cleanJsonResponse(raw);
-  return Array.isArray(parsed?.tokens) ? parsed.tokens : [];
+  const rawTokens = Array.isArray(parsed?.tokens) ? parsed.tokens : [];
+  return rawTokens.map(tk => {
+    if (!tk) return null;
+    let text = tk.text;
+    let explanation = tk.explanation;
+    let context = tk.context;
+    if (typeof text === 'object' && text !== null) {
+      if (!explanation) explanation = text.explanation;
+      if (!context) context = text.context;
+      text = text.text;
+    }
+    if (typeof text !== 'string') text = text != null ? String(text) : '';
+    return {
+      ...tk,
+      text,
+      explanation: typeof explanation === 'string' ? explanation : String(explanation ?? ''),
+      context: typeof context === 'string' ? context : String(context ?? '')
+    };
+  }).filter(tk => tk && tk.text.trim().length > 0);
 };
 
 export const fetchInteractiveAutoDebug = async (prompt, failedCommand, fullTerminalTranscript, ctx, settingsOrKey = '') => {
