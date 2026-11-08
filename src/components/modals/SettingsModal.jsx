@@ -165,6 +165,10 @@ export const SettingsModal = ({
 
   const pullAbortRef = useRef(null);
   const recommendedScrollRef = useRef(null);
+  const latestSettingsRef = useRef(settings);
+  useEffect(() => {
+    latestSettingsRef.current = settings;
+  }, [settings]);
   const currentProvider = settings?.apiProvider || 'gemini';
 
   useEffect(() => {
@@ -391,7 +395,7 @@ export const SettingsModal = ({
       setRawInstalledEntries([]);
       setOnlineCatalogModels([]);
       setStatusMessage('Ollama Server Offline');
-      if (currentProvider === 'ollama' && setApiStatus) setApiStatus('invalid');
+      if (latestSettingsRef.current?.apiProvider === 'ollama' && setApiStatus) setApiStatus('invalid');
       return;
     }
 
@@ -450,7 +454,7 @@ export const SettingsModal = ({
       setSelectedModel(detectedRunning);
       setStatusMessage(`${detectedRunning} is Running`);
       setSettings((prev) => ({ ...prev, localEndpoint: endpoint, localModel: detectedRunning }));
-      if (currentProvider === 'ollama' && setApiStatus) setApiStatus('valid');
+      if (latestSettingsRef.current?.apiProvider === 'ollama' && setApiStatus) setApiStatus('valid');
     } else {
       setRunningModel('');
       const sortedDetected = sortModelsList(deduplicatedNames.map((t) => ({ value: t, label: t })));
@@ -460,11 +464,12 @@ export const SettingsModal = ({
       setSelectedModel(bestDefault);
       const isInst = isModelInstalled(bestDefault, deduplicatedNames);
       setStatusMessage(isInst ? `Ready (${bestDefault} is installed)` : `${bestDefault} is not installed`);
-      if (currentProvider === 'ollama' && setApiStatus) setApiStatus('invalid');
+      if (latestSettingsRef.current?.apiProvider === 'ollama' && setApiStatus) setApiStatus('invalid');
     }
   };
 
   useEffect(() => {
+    let active = true;
     if (isOpen && currentProvider === 'ollama') {
       const init = async () => {
         let endpoint = getCleanEndpoint();
@@ -474,10 +479,13 @@ export const SettingsModal = ({
             if (host) endpoint = host;
           } catch {}
         }
-        await syncOllamaState(endpoint);
+        if (active && latestSettingsRef.current?.apiProvider === 'ollama') {
+          await syncOllamaState(endpoint);
+        }
       };
       init();
     }
+    return () => { active = false; };
   }, [isOpen, currentProvider]);
 
   useEffect(() => {
@@ -515,7 +523,7 @@ export const SettingsModal = ({
         setOnlineCatalogModels([]);
         setOllamaActionState('idle');
         setStatusMessage('Ollama Server Offline');
-        if (setApiStatus) setApiStatus('invalid');
+        if (latestSettingsRef.current?.apiProvider === 'ollama' && setApiStatus) setApiStatus('invalid');
       }
     } else {
       setOllamaActionState('starting');
@@ -628,11 +636,11 @@ export const SettingsModal = ({
       setRunningModel(modelToStart);
       setSettings((prev) => ({ ...prev, localModel: modelToStart, localEndpoint: endpoint }));
       setStatusMessage(`${modelToStart} is Running`);
-      if (setApiStatus) setApiStatus('valid');
+      if (latestSettingsRef.current?.apiProvider === 'ollama' && setApiStatus) setApiStatus('valid');
     } catch (err) {
       setOllamaError(err?.message || `Failed to start ${modelToStart}.`);
       setStatusMessage(`Error starting ${modelToStart}`);
-      if (setApiStatus) setApiStatus('invalid');
+      if (latestSettingsRef.current?.apiProvider === 'ollama' && setApiStatus) setApiStatus('invalid');
     } finally {
       setModelActionState('idle');
     }
@@ -657,7 +665,7 @@ export const SettingsModal = ({
     setRunningModel('');
     setModelActionState('idle');
     setStatusMessage(`Ready (${target} is installed)`);
-    if (setApiStatus) setApiStatus('invalid');
+    if (latestSettingsRef.current?.apiProvider === 'ollama' && setApiStatus) setApiStatus('invalid');
   };
 
   const handleInstallAndStartModel = async () => {
@@ -1144,7 +1152,12 @@ export const SettingsModal = ({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
               <button
                 type="button"
-                onClick={() => setSettings((prev) => ({ ...prev, apiProvider: 'gemini' }))}
+                onClick={() => {
+                  if (currentProvider !== 'gemini') {
+                    if (setApiStatus) setApiStatus('checking');
+                    setSettings((prev) => ({ ...prev, apiProvider: 'gemini' }));
+                  }
+                }}
                 className={`p-3 rounded-md border text-left transition-all ${currentProvider === 'gemini' ? 'provider-card-active' : 'border-[#30363d] bg-[#0d1117] text-gray-400 hover:border-gray-500'}`}
               >
                 <p className="text-xs">Google Gemini</p>
@@ -1152,7 +1165,12 @@ export const SettingsModal = ({
               </button>
               <button
                 type="button"
-                onClick={() => setSettings((prev) => ({ ...prev, apiProvider: 'openai' }))}
+                onClick={() => {
+                  if (currentProvider !== 'openai') {
+                    if (setApiStatus) setApiStatus('checking');
+                    setSettings((prev) => ({ ...prev, apiProvider: 'openai' }));
+                  }
+                }}
                 className={`p-3 rounded-md border text-left transition-all ${currentProvider === 'openai' ? 'provider-card-active' : 'border-[#30363d] bg-[#0d1117] text-gray-400 hover:border-gray-500'}`}
               >
                 <p className="text-xs">ChatGPT (OpenAI)</p>
@@ -1160,7 +1178,12 @@ export const SettingsModal = ({
               </button>
               <button
                 type="button"
-                onClick={() => setSettings((prev) => ({ ...prev, apiProvider: 'claude' }))}
+                onClick={() => {
+                  if (currentProvider !== 'claude') {
+                    if (setApiStatus) setApiStatus('checking');
+                    setSettings((prev) => ({ ...prev, apiProvider: 'claude' }));
+                  }
+                }}
                 className={`p-3 rounded-md border text-left transition-all ${currentProvider === 'claude' ? 'provider-card-active' : 'border-[#30363d] bg-[#0d1117] text-gray-400 hover:border-gray-500'}`}
               >
                 <p className="text-xs">Claude (Anthropic)</p>
@@ -1168,7 +1191,12 @@ export const SettingsModal = ({
               </button>
               <button
                 type="button"
-                onClick={() => setSettings((prev) => ({ ...prev, apiProvider: 'ollama' }))}
+                onClick={() => {
+                  if (currentProvider !== 'ollama') {
+                    if (setApiStatus) setApiStatus('checking');
+                    setSettings((prev) => ({ ...prev, apiProvider: 'ollama' }));
+                  }
+                }}
                 className={`p-3 rounded-md border text-left transition-all ${currentProvider === 'ollama' ? 'provider-card-active' : 'border-[#30363d] bg-[#0d1117] text-gray-400 hover:border-gray-500'}`}
               >
                 <p className="text-xs">Ollama (Local)</p>

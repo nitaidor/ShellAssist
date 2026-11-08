@@ -17,7 +17,8 @@ export const CommandBuilderTab = ({
   setFavorites,
   onClearHistory,
   filterHistory,
-  getCollapsedSuggestionColor
+  getCollapsedSuggestionColor,
+  setApiStatus
 }) => {
   const builderInputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -179,6 +180,7 @@ export const CommandBuilderTab = ({
       setIsAnalyzeMode(false); // Return to standard builder mode for subsequent prompts
 
       const firstTurn = { ...result, id: generateId(), prompt: currentRequest, ctx: currentCtx, debugThread: [], mode: currentMode, isStarred: false };
+      setApiStatus?.('valid');
       setActiveBuilderTurns([firstTurn]);
       setActiveRefineCtx(currentCtx);
 
@@ -217,6 +219,7 @@ export const CommandBuilderTab = ({
       if (cancelGenRef.current !== refineId) return;
 
       const nextTurn = { ...result, id: generateId(), prompt: currentInput, ctx: activeRefineCtx, debugThread: [], mode: 'en-to-code', isStarred: false };
+      setApiStatus?.('valid');
       setActiveBuilderTurns(prev => [...prev, nextTurn]);
       setRefineInput('');
 

@@ -1064,6 +1064,7 @@ export default function App() {
               onClearHistory={(t) => setHistoryClearModal(t)}
               filterHistory={filterHistory}
               getCollapsedSuggestionColor={getCollapsedSuggestionColor}
+              setApiStatus={setApiStatus}
             />
           </div>
 
@@ -1077,6 +1078,7 @@ export default function App() {
               onClearHistory={(t) => setHistoryClearModal(t)}
               filterHistory={filterHistory}
               getCollapsedSuggestionColor={getCollapsedSuggestionColor}
+              setApiStatus={setApiStatus}
             />
           </div>
 
@@ -1090,6 +1092,7 @@ export default function App() {
               onClearHistory={(t) => setHistoryClearModal(t)}
               filterHistory={filterHistory}
               getCollapsedSuggestionColor={getCollapsedSuggestionColor}
+              setApiStatus={setApiStatus}
             />
           </div>
         </main>

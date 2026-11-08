@@ -15,7 +15,8 @@ export const CodeAnalyzerTab = ({
   setAnalyzerHistory,
   onClearHistory,
   filterHistory,
-  getCollapsedSuggestionColor
+  getCollapsedSuggestionColor,
+  setApiStatus
 }) => {
   const analyzerInputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -130,6 +131,7 @@ export const CodeAnalyzerTab = ({
         mode: 'code-to-en'
       };
       setActiveAnalyzerTurn(newTurn);
+      setApiStatus?.('valid');
       
       setAnalyzerHistory(prev => [
         {

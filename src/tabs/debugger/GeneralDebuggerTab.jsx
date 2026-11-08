@@ -15,7 +15,8 @@ export const GeneralDebuggerTab = ({
   setDebugHistory,
   onClearHistory,
   filterHistory,
-  getCollapsedSuggestionColor
+  getCollapsedSuggestionColor,
+  setApiStatus
 }) => {
   const debuggerInputRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -119,6 +120,7 @@ export const GeneralDebuggerTab = ({
       const result = await fetchStandaloneDebug([{ role: "user", text: combinedInput }], currentCtx, settings);
       if (cancelDebuggerRef.current !== genId) return;
 
+      setApiStatus?.('valid');
       setUploadedFile(null);
       setNewStandaloneInput('');
 
@@ -168,6 +170,8 @@ export const GeneralDebuggerTab = ({
     try {
       const result = await fetchStandaloneDebug([...activeStandaloneThread, { role: "user", text: currentInput }], activeStandaloneCtx, settings);
       if (cancelDebuggerRef.current !== genId) return;
+
+      setApiStatus?.('valid');
 
       const updatedType = result.type || activeStandaloneCtx?.type || 'Command';
       const updatedCtx = { ...activeStandaloneCtx, type: updatedType };
