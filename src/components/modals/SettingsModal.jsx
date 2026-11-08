@@ -1487,7 +1487,6 @@ export const SettingsModal = ({
                   </div>
                   <div className="space-y-2.5">
                     {group.models.map((item) => {
-                      const isCurrSelected = selectedModel.toLowerCase() === item.tag.toLowerCase();
                       const isInst = isOllamaRunning && isModelInstalled(item.tag);
 
                       return (
@@ -1495,11 +1494,7 @@ export const SettingsModal = ({
                           key={item.tag}
                           type="button"
                           onClick={() => handleSelectRecommendedModel(item.tag)}
-                          className={`w-full text-left bg-[#161b22] border rounded-md p-3 flex flex-col gap-1 transition-all cursor-pointer ${
-                            isCurrSelected
-                              ? 'saved-item-active shadow-sm'
-                              : 'border-[#30363d] hover:border-gray-500'
-                          }`}
+                          className="w-full text-left bg-[#161b22] border border-[#30363d] hover:border-gray-500 rounded-md p-3 flex flex-col gap-1 transition-all cursor-pointer"
                         >
                           <div className="flex items-center justify-between gap-2 flex-wrap">
                             <div className="flex items-center gap-2 flex-wrap">
