@@ -349,10 +349,8 @@ export const fetchCommandGeneration = async (requestText, previousTurns = [], ct
 
   const fastTokenRule = `TOKENIZATION RULE (FAST MODE): Do NOT generate token-by-token explanations on this pass. You MUST return an empty array [] for "tokens".`;
   const fullTokenRule = isLocalOllama
-    ? (isScript
-        ? `TOKENIZATION RULE (LOCAL SCRIPT MODE): Break down only the first 6 lines of "command" into sequential whitespace-separated tokens (commands, flags, variables, keywords, arguments, and operators, maximum 12 tokens total, with a brief 1-sentence explanation per token) and STOP adding tokens after line 6 so the user can click "Full Breakdown Available" for the rest.`
-        : `TOKENIZATION RULE (LOCAL COMMAND MODE): Break "command" down sequentially into its whitespace-separated tokens (commands/cmdlets, flags/parameters, arguments/strings, and pipe/chain operators) from start to finish so every part of the single-line command is covered, keeping each token's "explanation" concise (1 short sentence, max 12 words). Do NOT split inside a single flag or path (keep flags like "/R:2" or "--output=json" as one token).`)
-    : `TOKENIZATION RULE (CRITICAL): The "tokens" array must break "command" down into GRANULAR, ATOMIC tokens in sequential order: (1) individual cmdlets/commands (e.g. "Get-VM"), (2) individual flags/parameters (e.g. "-ComputerName"), (3) individual variables (e.g. "$Server"), (4) individual keywords (e.g. "if", "foreach"), (5) individual operators/delimiters (e.g. "=", "|", ";", "{"), (6) string/number literals, and (7) entire comments (e.g. "# This is a comment"). Treat an entire comment block as a single token. NEVER group a multi-token block, loop body, or pipeline into one giant token, and NEVER use "..." placeholders. 30-LINE CAP RULE: If "command" is longer than 30 lines, ONLY generate tokens for the first 30 lines and STOP adding tokens after line 30 (leaving lines 31+ unannotated so the user can trigger "Full Breakdown Available").`;
+    ? `TOKENIZATION RULE (LOCAL MODE): Break down the first 15 sequential whitespace-separated tokens of "command" (or all tokens if fewer) from start to finish (commands, flags, parameters, arguments, operators), keeping each token's "explanation" concise (1 short sentence, max 12 words). Do NOT split inside a single flag or path.`
+    : `TOKENIZATION RULE (CRITICAL): The "tokens" array must break "command" down into GRANULAR, ATOMIC tokens from start to finish in sequential order: (1) individual cmdlets/commands (e.g. "Get-VM"), (2) individual flags/parameters (e.g. "-ComputerName"), (3) individual variables (e.g. "$Server"), (4) individual keywords (e.g. "if", "foreach"), (5) individual operators/delimiters (e.g. "=", "|", ";", "{"), (6) string/number literals, and (7) entire comments (e.g. "# This is a comment"). Treat an entire comment block as a single token. NEVER group a multi-token block, loop body, or pipeline into one giant token, and NEVER use "..." placeholders.`;
 
   const nonInteractiveRule = isAnalyze
     ? ``
@@ -469,33 +467,8 @@ export const fetchCommandGeneration = async (requestText, previousTurns = [], ct
       };
     }).filter(tk => tk && tk.text.trim().length > 0);
 
-    const cleanCmd = typeof parsed.command === 'string' ? parsed.command.trim() : '';
-    const cmdLines = cleanCmd.split(/\r?\n/);
-    const maxInitialLines = (isLocalOllama && isScript) ? 6 : 30;
-    if (cmdLines.length > maxInitialLines) {
-      let newlineCount = 0;
-      let lineCapEndIdx = cleanCmd.length;
-      for (let i = 0; i < cleanCmd.length; i++) {
-        if (cleanCmd[i] === '\n') {
-          newlineCount++;
-          if (newlineCount === maxInitialLines) {
-            lineCapEndIdx = i;
-            break;
-          }
-        }
-      }
-      const cappedTokens = [];
-      let cursor = 0;
-      for (const tk of parsed.tokens) {
-        if (!tk || !tk.text || !tk.text.trim()) continue;
-        const tText = tk.text.trim();
-        const idx = cleanCmd.indexOf(tText, cursor);
-        if (idx === -1) continue;
-        if (idx + tText.length > lineCapEndIdx) break;
-        cappedTokens.push(tk);
-        cursor = idx + tText.length;
-      }
-      parsed.tokens = cappedTokens;
+    if (isLocalOllama && Array.isArray(parsed.tokens) && parsed.tokens.length > 15) {
+      parsed.tokens = parsed.tokens.slice(0, 15);
     }
   }
   return parsed;
