@@ -91,7 +91,6 @@ export default function App() {
       apiProvider: 'gemini',
       apiKey: initialKey,
       geminiApiKey: initialKey,
-      geminiModel: 'gemini-3.8-flash',
       savedGeminiKeys: initialSavedList,
       openaiApiKey: persisted.current?.settings?.openaiApiKey || '',
       openaiModel: 'gpt-4o-mini',
@@ -106,6 +105,7 @@ export default function App() {
       stopOllamaOnExit: false,
       skipTokenAnalysis: false,
       ...(persisted.current?.settings || {}),
+      geminiModel: 'gemini-3-flash-preview',
       localEndpoint: persisted.current?.settings?.localEndpoint || 'http://localhost:11434',
       localModel: persisted.current?.settings?.localModel || 'gemma4:e4b'
     };

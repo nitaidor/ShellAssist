@@ -863,7 +863,7 @@ export const SettingsModal = ({
   };
 
   const getProviderInfo = () => {
-    if (currentProvider === 'gemini') return { label: 'Gemini', model: 'gemini-3.8-flash', hasKey: !!(settings.geminiApiKey || settings.apiKey || (typeof window !== 'undefined' && localStorage.getItem('BYOK_GEMINI_KEY'))) };
+    if (currentProvider === 'gemini') return { label: 'Gemini', model: 'gemini-3-flash-preview', hasKey: !!(settings.geminiApiKey || settings.apiKey || (typeof window !== 'undefined' && localStorage.getItem('BYOK_GEMINI_KEY'))) };
     if (currentProvider === 'openai') return { label: 'ChatGPT', model: settings.openaiModel || 'gpt-4o-mini', hasKey: !!settings.openaiApiKey };
     if (currentProvider === 'claude') return { label: 'Claude', model: settings.claudeModel || 'claude-3-5-sonnet', hasKey: !!settings.claudeApiKey };
     return { label: 'Ollama', model: String(runningModel || settings.localModel || 'gemma4:e4b'), hasKey: true };

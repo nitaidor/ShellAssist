@@ -25,7 +25,7 @@ export const Header = ({ isDarkMode, settings, apiStatus, showMenu, setShowMenu,
       settings.apiKey ||
       (typeof window !== 'undefined' && localStorage.getItem('BYOK_GEMINI_KEY'))
     );
-    if (p === 'gemini') return { label: 'Gemini', model: 'gemini-3.8-flash', hasKey: hasGeminiKey };
+    if (p === 'gemini') return { label: 'Gemini', model: 'gemini-3-flash-preview', hasKey: hasGeminiKey };
     if (p === 'openai') return { label: 'ChatGPT', model: settings.openaiModel || 'gpt-4o-mini', hasKey: !!(settings.openaiApiKey || (typeof window !== 'undefined' && localStorage.getItem('BYOK_OPENAI_KEY'))) };
     if (p === 'claude') return { label: 'Claude', model: settings.claudeModel || 'claude-3-5-sonnet', hasKey: !!(settings.claudeApiKey || (typeof window !== 'undefined' && localStorage.getItem('BYOK_CLAUDE_KEY'))) };
     
