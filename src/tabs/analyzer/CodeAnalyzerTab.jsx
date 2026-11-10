@@ -16,11 +16,15 @@ export const CodeAnalyzerTab = ({
   onClearHistory,
   filterHistory,
   getCollapsedSuggestionColor,
-  setApiStatus
+  setApiStatus,
+  analyzerCtx: externalAnalyzerCtx,
+  setAnalyzerCtx: externalSetAnalyzerCtx
 }) => {
   const analyzerInputRef = useRef(null);
   const fileInputRef = useRef(null);
-  const [analyzerCtx, setAnalyzerCtx] = useState({ os: 'Windows', shell: 'PowerShell' });
+  const [internalAnalyzerCtx, setInternalAnalyzerCtx] = useState({ os: 'Windows', shell: 'PowerShell' });
+  const analyzerCtx = externalAnalyzerCtx !== undefined ? externalAnalyzerCtx : internalAnalyzerCtx;
+  const setAnalyzerCtx = externalSetAnalyzerCtx !== undefined ? externalSetAnalyzerCtx : setInternalAnalyzerCtx;
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isAnalyzerExpanded, setIsAnalyzerExpanded] = useState(true);
   const [analyzerInput, setAnalyzerInput] = useState('');

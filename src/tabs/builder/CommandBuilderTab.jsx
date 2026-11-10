@@ -18,11 +18,15 @@ export const CommandBuilderTab = ({
   onClearHistory,
   filterHistory,
   getCollapsedSuggestionColor,
-  setApiStatus
+  setApiStatus,
+  builderCtx: externalBuilderCtx,
+  setBuilderCtx: externalSetBuilderCtx
 }) => {
   const builderInputRef = useRef(null);
   const fileInputRef = useRef(null);
-  const [builderCtx, setBuilderCtx] = useState({ os: 'Windows', shell: 'PowerShell', type: 'Command' });
+  const [internalBuilderCtx, setInternalBuilderCtx] = useState({ os: 'Windows', shell: 'PowerShell', type: 'Command' });
+  const builderCtx = externalBuilderCtx !== undefined ? externalBuilderCtx : internalBuilderCtx;
+  const setBuilderCtx = externalSetBuilderCtx !== undefined ? externalSetBuilderCtx : setInternalBuilderCtx;
   const [isBuilderExpanded, setIsBuilderExpanded] = useState(true);
   const [request, setRequest] = useState('');
   const [loading, setLoading] = useState(false);

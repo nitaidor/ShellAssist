@@ -16,11 +16,15 @@ export const GeneralDebuggerTab = ({
   onClearHistory,
   filterHistory,
   getCollapsedSuggestionColor,
-  setApiStatus
+  setApiStatus,
+  debugCtx: externalDebugCtx,
+  setDebugCtx: externalSetDebugCtx
 }) => {
   const debuggerInputRef = useRef(null);
   const fileInputRef = useRef(null);
-  const [debugCtx, setDebugCtx] = useState({ os: 'Windows', shell: 'PowerShell' });
+  const [internalDebugCtx, setInternalDebugCtx] = useState({ os: 'Windows', shell: 'PowerShell' });
+  const debugCtx = externalDebugCtx !== undefined ? externalDebugCtx : internalDebugCtx;
+  const setDebugCtx = externalSetDebugCtx !== undefined ? externalSetDebugCtx : setInternalDebugCtx;
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isDebuggerExpanded, setIsDebuggerExpanded] = useState(true);
   const [newStandaloneInput, setNewStandaloneInput] = useState('');

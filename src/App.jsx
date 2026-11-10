@@ -19,6 +19,7 @@ import {
 } from './components/modals/ConfirmationModals';
 import { loadPersistedState, savePersistedState } from './utils/storage';
 import { detectHostOS, getInteractiveShellOptions, generateId } from './utils/platform';
+import { SHELL_OPTIONS } from './constants/environment';
 import { executeTerminalCommand, startTerminalSession, stopTerminalSession } from './services/terminal';
 import {
   fetchCommandGeneration,
@@ -195,13 +196,31 @@ export default function App() {
   const hostOs = isDesktopEnv ? detectHostOS() : 'WebView';
   const interactiveShellOptions = hostOs === 'WebView' ? ['N/A'] : getInteractiveShellOptions(hostOs);
 
-  const [selectedInteractiveShell, setSelectedInteractiveShell] = useState(interactiveShellOptions[0] || 'PowerShell');
+  const [selectedInteractiveShell, setSelectedInteractiveShell] = useState(() => {
+    const saved = persisted.current?.tabTags?.interactive?.shell;
+    if (saved && interactiveShellOptions.includes(saved)) return saved;
+    return interactiveShellOptions[0] || 'PowerShell';
+  });
   const [runInteractiveAsAdmin, setRunInteractiveAsAdmin] = useState(false);
-  useEffect(() => { setSelectedInteractiveShell(interactiveShellOptions[0] || 'PowerShell'); }, [hostOs]);
+  useEffect(() => {
+    setSelectedInteractiveShell(prev => {
+      if (prev && interactiveShellOptions.includes(prev)) return prev;
+      const saved = persisted.current?.tabTags?.interactive?.shell;
+      if (saved && interactiveShellOptions.includes(saved)) return saved;
+      return interactiveShellOptions[0] || 'PowerShell';
+    });
+  }, [hostOs]);
 
   // Tab 0: Simulated Terminal State
-  const [selectedSimOs, setSelectedSimOs] = useState('Windows');
-  const [selectedSimShell, setSelectedSimShell] = useState('PowerShell');
+  const [selectedSimOs, setSelectedSimOs] = useState(() => {
+    return persisted.current?.tabTags?.simulated?.os || 'Windows';
+  });
+  const [selectedSimShell, setSelectedSimShell] = useState(() => {
+    const os = persisted.current?.tabTags?.simulated?.os || 'Windows';
+    const validShells = (SHELL_OPTIONS[os] || ['PowerShell']).filter(s => s !== '');
+    const saved = persisted.current?.tabTags?.simulated?.shell;
+    return saved && validShells.includes(saved) ? saved : (validShells[0] || 'PowerShell');
+  });
   const [runSimulatedAsAdmin, setRunSimulatedAsAdmin] = useState(false);
   const [activeSimulatedSession, setActiveSimulatedSession] = useState(null);
   const [simulatedConnectionError, setSimulatedConnectionError] = useState(null);
@@ -260,13 +279,35 @@ export default function App() {
   }, [isAnyModalOpen]);
 
   // Tab 2: Builder State
+  const [builderCtx, setBuilderCtx] = useState(() => {
+    const saved = persisted.current?.tabTags?.builder;
+    const os = saved?.os || 'Windows';
+    const validShells = (SHELL_OPTIONS[os] || ['PowerShell']).filter(s => s !== '');
+    const shell = saved?.shell && validShells.includes(saved.shell) ? saved.shell : (validShells[0] || 'PowerShell');
+    const type = saved?.type === 'Script' ? 'Script' : 'Command';
+    return { os, shell, type };
+  });
   const [history, setHistory] = useState(() => persisted.current?.history || []);
   const [favorites, setFavorites] = useState(() => persisted.current?.favorites || []);
 
   // Tab 3: Analyzer State
+  const [analyzerCtx, setAnalyzerCtx] = useState(() => {
+    const saved = persisted.current?.tabTags?.analyzer;
+    const os = saved?.os || 'Windows';
+    const validShells = (SHELL_OPTIONS[os] || ['PowerShell']).filter(s => s !== '');
+    const shell = saved?.shell && validShells.includes(saved.shell) ? saved.shell : (validShells[0] || 'PowerShell');
+    return { os, shell };
+  });
   const [analyzerHistory, setAnalyzerHistory] = useState(() => persisted.current?.analyzerHistory || []);
 
   // Tab 4: Debugger State
+  const [debugCtx, setDebugCtx] = useState(() => {
+    const saved = persisted.current?.tabTags?.debugger;
+    const os = saved?.os || 'Windows';
+    const validShells = (SHELL_OPTIONS[os] || ['PowerShell']).filter(s => s !== '');
+    const shell = saved?.shell && validShells.includes(saved.shell) ? saved.shell : (validShells[0] || 'PowerShell');
+    return { os, shell };
+  });
   const [debugHistory, setDebugHistory] = useState(() => persisted.current?.debugHistory || []);
 
   // Sync active sessions to history state
@@ -292,8 +333,39 @@ export default function App() {
 
   // Persist State
   useEffect(() => {
-    savePersistedState({ isDarkMode, settings, history, favorites, simulatedHistory, interactiveHistory, analyzerHistory, debugHistory });
-  }, [isDarkMode, settings, history, favorites, simulatedHistory, interactiveHistory, analyzerHistory, debugHistory]);
+    savePersistedState({
+      isDarkMode,
+      settings,
+      history,
+      favorites,
+      simulatedHistory,
+      interactiveHistory,
+      analyzerHistory,
+      debugHistory,
+      tabTags: {
+        builder: builderCtx,
+        analyzer: analyzerCtx,
+        debugger: debugCtx,
+        simulated: { os: selectedSimOs, shell: selectedSimShell },
+        interactive: { shell: selectedInteractiveShell }
+      }
+    });
+  }, [
+    isDarkMode,
+    settings,
+    history,
+    favorites,
+    simulatedHistory,
+    interactiveHistory,
+    analyzerHistory,
+    debugHistory,
+    builderCtx,
+    analyzerCtx,
+    debugCtx,
+    selectedSimOs,
+    selectedSimShell,
+    selectedInteractiveShell
+  ]);
 
   // Sync Favorites
   useEffect(() => {
@@ -1065,6 +1137,8 @@ export default function App() {
               filterHistory={filterHistory}
               getCollapsedSuggestionColor={getCollapsedSuggestionColor}
               setApiStatus={setApiStatus}
+              builderCtx={builderCtx}
+              setBuilderCtx={setBuilderCtx}
             />
           </div>
 
@@ -1079,6 +1153,8 @@ export default function App() {
               filterHistory={filterHistory}
               getCollapsedSuggestionColor={getCollapsedSuggestionColor}
               setApiStatus={setApiStatus}
+              analyzerCtx={analyzerCtx}
+              setAnalyzerCtx={setAnalyzerCtx}
             />
           </div>
 
@@ -1093,6 +1169,8 @@ export default function App() {
               filterHistory={filterHistory}
               getCollapsedSuggestionColor={getCollapsedSuggestionColor}
               setApiStatus={setApiStatus}
+              debugCtx={debugCtx}
+              setDebugCtx={setDebugCtx}
             />
           </div>
         </main>
