@@ -1096,7 +1096,7 @@ html.theme-monochrome .rename-check-icon,
 .theme-monochrome .btn-saved-action:hover .rename-check-icon,
 html.theme-monochrome .btn-saved-action:hover .rename-check-icon { color: #111827 !important; stroke: #111827 !important; }
 html.theme-light:not(.theme-monochrome) .rename-check-icon { color: #16a34a !important; stroke: #16a34a !important; }
-html.theme-light:not(.theme-monochrome) .btn-saved-action:hover .rename-check-icon { color: #2563eb !important; stroke: #2563eb !important; }
+html.theme-light:not(.theme-monochrome) .btn-saved-action:hover .rename-check-icon { color: #22c55e !important; stroke: #22c55e !important; }
 
 .theme-terminal-red .text-green-400 { color: #f87171 !important; stroke: #f87171 !important; }
 .theme-monochrome .text-green-400, html.theme-monochrome .text-green-400 { color: #111827 !important; stroke: #111827 !important; }
