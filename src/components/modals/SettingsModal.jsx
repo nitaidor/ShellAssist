@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Settings, X, Plus, Trash2, AlertTriangle, AlertCircle, XCircle,
-  CheckCircle2, Loader2, Play, Square, Download, Ban, HelpCircle
+  CheckCircle2, Loader2, Play, Square, Download, Ban, HelpCircle,
+  Pencil, Check
 } from 'lucide-react';
 import CustomSelect from '../common/CustomSelect';
 
@@ -145,6 +146,9 @@ export const SettingsModal = ({
   onToggleTerminalIntegration
 }) => {
   const [newKeyInput, setNewKeyInput] = useState('');
+  const [newKeyName, setNewKeyName] = useState('');
+  const [editingKeyIndex, setEditingKeyIndex] = useState(null);
+  const [editNameInput, setEditNameInput] = useState('');
   const [showRecommendedModal, setShowRecommendedModal] = useState(false);
   const [recommendedAlert, setRecommendedAlert] = useState(null);
 
@@ -165,6 +169,7 @@ export const SettingsModal = ({
 
   const pullAbortRef = useRef(null);
   const recommendedScrollRef = useRef(null);
+  const keyInputRef = useRef(null);
   const latestSettingsRef = useRef(settings);
   useEffect(() => {
     latestSettingsRef.current = settings;
@@ -818,56 +823,82 @@ export const SettingsModal = ({
   };
 
   // ---------------- CLOUD API KEYS HANDLERS ----------------
-  const handleSaveKey = () => {
-    const trimmed = newKeyInput.trim();
-    if (!trimmed) return;
-
-    if (currentProvider === 'gemini') {
-      const existing = settings.savedGeminiKeys || [];
-      const updated = existing.includes(trimmed) ? existing : [trimmed, ...existing];
-      setSettings((prev) => ({ ...prev, apiKey: trimmed, geminiApiKey: trimmed, savedGeminiKeys: updated }));
-      localStorage.setItem('BYOK_GEMINI_KEY', trimmed);
-    } else if (currentProvider === 'openai') {
-      const existing = settings.savedOpenaiKeys || [];
-      const updated = existing.includes(trimmed) ? existing : [trimmed, ...existing];
-      setSettings((prev) => ({ ...prev, openaiApiKey: trimmed, savedOpenaiKeys: updated }));
-      localStorage.setItem('BYOK_OPENAI_KEY', trimmed);
-    } else if (currentProvider === 'claude') {
-      const existing = settings.savedClaudeKeys || [];
-      const updated = existing.includes(trimmed) ? existing : [trimmed, ...existing];
-      setSettings((prev) => ({ ...prev, claudeApiKey: trimmed, savedClaudeKeys: updated }));
-      localStorage.setItem('BYOK_CLAUDE_KEY', trimmed);
-    }
-    setNewKeyInput('');
+  const normalizeKeyEntry = (entry) => {
+    if (!entry) return { key: '', name: '' };
+    if (typeof entry === 'string') return { key: entry.trim(), name: '' };
+    return { key: String(entry.key || '').trim(), name: String(entry.name || '').trim() };
   };
 
-  const handleSelectKey = (key) => {
-    if (currentProvider === 'gemini') {
-      setSettings((prev) => ({ ...prev, apiKey: key, geminiApiKey: key }));
-      localStorage.setItem('BYOK_GEMINI_KEY', key);
-    } else if (currentProvider === 'openai') {
-      setSettings((prev) => ({ ...prev, openaiApiKey: key }));
-      localStorage.setItem('BYOK_OPENAI_KEY', key);
-    } else if (currentProvider === 'claude') {
-      setSettings((prev) => ({ ...prev, claudeApiKey: key }));
-      localStorage.setItem('BYOK_CLAUDE_KEY', key);
+  const handleSaveKey = () => {
+    const trimmedKey = newKeyInput.trim();
+    if (!trimmedKey) return;
+    const trimmedName = newKeyName.trim();
+
+    const providerKeyField = currentProvider === 'gemini' ? 'geminiApiKey' : currentProvider === 'openai' ? 'openaiApiKey' : 'claudeApiKey';
+    const providerListField = currentProvider === 'gemini' ? 'savedGeminiKeys' : currentProvider === 'openai' ? 'savedOpenaiKeys' : 'savedClaudeKeys';
+    const byokStorageKey = currentProvider === 'gemini' ? 'BYOK_GEMINI_KEY' : currentProvider === 'openai' ? 'BYOK_OPENAI_KEY' : 'BYOK_CLAUDE_KEY';
+
+    const existing = (settings[providerListField] || []).map(normalizeKeyEntry);
+    const existingIdx = existing.findIndex((k) => k.key === trimmedKey);
+    let updated;
+    if (existingIdx >= 0) {
+      updated = [...existing];
+      if (trimmedName) updated[existingIdx] = { key: trimmedKey, name: trimmedName };
+    } else {
+      updated = [{ key: trimmedKey, name: trimmedName }, ...existing];
     }
+
+    setSettings((prev) => ({
+      ...prev,
+      apiKey: currentProvider === 'gemini' ? trimmedKey : prev.apiKey,
+      [providerKeyField]: trimmedKey,
+      [providerListField]: updated
+    }));
+    localStorage.setItem(byokStorageKey, trimmedKey);
+    setNewKeyInput('');
+    setNewKeyName('');
+  };
+
+  const handleSelectKey = (keyString) => {
+    if (currentProvider === 'gemini') {
+      setSettings((prev) => ({ ...prev, apiKey: keyString, geminiApiKey: keyString }));
+      localStorage.setItem('BYOK_GEMINI_KEY', keyString);
+    } else if (currentProvider === 'openai') {
+      setSettings((prev) => ({ ...prev, openaiApiKey: keyString }));
+      localStorage.setItem('BYOK_OPENAI_KEY', keyString);
+    } else if (currentProvider === 'claude') {
+      setSettings((prev) => ({ ...prev, claudeApiKey: keyString }));
+      localStorage.setItem('BYOK_CLAUDE_KEY', keyString);
+    }
+  };
+
+  const handleRenameKey = (keyString, newName) => {
+    const providerListField = currentProvider === 'gemini' ? 'savedGeminiKeys' : currentProvider === 'openai' ? 'savedOpenaiKeys' : 'savedClaudeKeys';
+    const existing = (settings[providerListField] || []).map(normalizeKeyEntry);
+    const updated = existing.map((k) => (k.key === keyString ? { ...k, name: newName.trim() } : k));
+    setSettings((prev) => ({
+      ...prev,
+      [providerListField]: updated
+    }));
+    setEditingKeyIndex(null);
   };
 
   const handleDeleteKey = (keyToDelete) => {
-    if (currentProvider === 'gemini') {
-      const updated = (settings.savedGeminiKeys || []).filter((k) => k !== keyToDelete);
-      setSettings((prev) => ({ ...prev, apiKey: updated[0] || '', geminiApiKey: updated[0] || '', savedGeminiKeys: updated }));
-      localStorage.setItem('BYOK_GEMINI_KEY', updated[0] || '');
-    } else if (currentProvider === 'openai') {
-      const updated = (settings.savedOpenaiKeys || []).filter((k) => k !== keyToDelete);
-      setSettings((prev) => ({ ...prev, openaiApiKey: updated[0] || '', savedOpenaiKeys: updated }));
-      localStorage.setItem('BYOK_OPENAI_KEY', updated[0] || '');
-    } else if (currentProvider === 'claude') {
-      const updated = (settings.savedClaudeKeys || []).filter((k) => k !== keyToDelete);
-      setSettings((prev) => ({ ...prev, claudeApiKey: updated[0] || '', savedClaudeKeys: updated }));
-      localStorage.setItem('BYOK_CLAUDE_KEY', updated[0] || '');
-    }
+    const providerKeyField = currentProvider === 'gemini' ? 'geminiApiKey' : currentProvider === 'openai' ? 'openaiApiKey' : 'claudeApiKey';
+    const providerListField = currentProvider === 'gemini' ? 'savedGeminiKeys' : currentProvider === 'openai' ? 'savedOpenaiKeys' : 'savedClaudeKeys';
+    const byokStorageKey = currentProvider === 'gemini' ? 'BYOK_GEMINI_KEY' : currentProvider === 'openai' ? 'BYOK_OPENAI_KEY' : 'BYOK_CLAUDE_KEY';
+
+    const existing = (settings[providerListField] || []).map(normalizeKeyEntry);
+    const updated = existing.filter((k) => k.key !== keyToDelete);
+    const fallbackKey = updated[0]?.key || '';
+
+    setSettings((prev) => ({
+      ...prev,
+      apiKey: currentProvider === 'gemini' ? fallbackKey : prev.apiKey,
+      [providerKeyField]: fallbackKey,
+      [providerListField]: updated
+    }));
+    localStorage.setItem(byokStorageKey, fallbackKey);
   };
 
   const getProviderInfo = () => {
@@ -913,38 +944,97 @@ export const SettingsModal = ({
       <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block mb-2">Saved API Keys:</span>
       {savedKeys.length === 0 ? (
         <p className="text-xs text-gray-500 italic p-2 border border-dashed border-[#30363d] rounded text-center">
-          No keys saved yet. Paste your key above and press Enter.
+          No keys saved yet. Paste your key above and click Save.
         </p>
       ) : (
         <div className="space-y-2 max-h-40 overflow-y-auto">
-          {savedKeys.map((key, i) => {
-            const isSelected = activeKey === key;
-            const masked = key.length > 20 ? `${key.substring(0, 8)}••••••••${key.substring(key.length - 6)}` : key;
+          {savedKeys.map((item, i) => {
+            const entry = normalizeKeyEntry(item);
+            const isSelected = activeKey === entry.key;
+            const masked = entry.key.length > 20 ? `${entry.key.substring(0, 8)}••••••••${entry.key.substring(entry.key.length - 6)}` : entry.key;
+            const isEditingThis = editingKeyIndex === i;
+
             return (
               <div
                 key={i}
-                onClick={() => handleSelectKey(key)}
+                onClick={() => !isEditingThis && handleSelectKey(entry.key)}
                 className={`flex items-center justify-between p-2.5 rounded-md border cursor-pointer text-xs transition-all ${
                   isSelected ? 'saved-item-active font-semibold shadow-sm' : 'border-[#30363d] bg-[#161b22] text-gray-400 hover:border-gray-500'
                 }`}
               >
-                <div className="flex items-center gap-2 truncate">
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${isSelected ? 'saved-item-dot' : 'saved-item-dot-inactive'}`}></span>
-                  <span className="font-mono truncate">{masked}</span>
-                  {isSelected && (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider saved-item-badge">
-                      Active
-                    </span>
+                {isEditingThis ? (
+                  <div className="flex items-center gap-1.5 flex-1 min-w-0 mr-2" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="text"
+                      value={editNameInput}
+                      onChange={(e) => setEditNameInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleRenameKey(entry.key, editNameInput);
+                        if (e.key === 'Escape') setEditingKeyIndex(null);
+                      }}
+                      placeholder="Enter key name..."
+                      autoFocus
+                      className="flex-1 bg-[#0d1117] border border-[#30363d] rounded px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-blue-500 font-sans"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRenameKey(entry.key, editNameInput)}
+                      className="p-1 btn-saved-action transition-colors"
+                      title="Save name"
+                    >
+                      <Check className="w-3.5 h-3.5 text-green-400" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingKeyIndex(null)}
+                      className="p-1 btn-saved-action transition-colors"
+                      title="Cancel"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 truncate flex-1 min-w-0">
+                    <span className={`w-2 h-2 rounded-full shrink-0 ${isSelected ? 'saved-item-dot' : 'saved-item-dot-inactive'}`}></span>
+                    {entry.name ? (
+                      <div className="flex items-center gap-2 truncate min-w-0">
+                        <span className="font-semibold text-xs saved-item-name truncate">{entry.name}</span>
+                        <span className="text-[11px] font-mono text-gray-500 truncate">({masked})</span>
+                      </div>
+                    ) : (
+                      <span className="font-mono truncate">{masked}</span>
+                    )}
+                    {isSelected && (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider saved-item-badge shrink-0">
+                        Active
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div className="flex items-center gap-1 shrink-0 ml-2">
+                  {!isEditingThis && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingKeyIndex(i);
+                        setEditNameInput(entry.name || '');
+                      }}
+                      className="p-1 btn-saved-action text-gray-500 transition-colors"
+                      title="Rename key"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleDeleteKey(entry.key); }}
+                    className="p-1 hover:text-red-400 text-gray-500 transition-colors"
+                    title="Delete key"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); handleDeleteKey(key); }}
-                  className="p-1 hover:text-red-400 text-gray-500 transition-colors ml-2"
-                  title="Delete key"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
               </div>
             );
           })}
@@ -1208,12 +1298,29 @@ export const SettingsModal = ({
               <div className="bg-[#0d1117] p-4 rounded-md border border-[#30363d] animate-in fade-in space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Add {getProviderInfo().label} API Key <span className="text-xs text-gray-500 font-normal">(Press Enter to Save)</span>
+                    Add {getProviderInfo().label} API Key
                   </label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <input
+                      type="text"
+                      placeholder="Enter key name..."
+                      value={newKeyName}
+                      onChange={(e) => setNewKeyName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          if (!newKeyInput.trim()) {
+                            keyInputRef.current?.focus();
+                          } else {
+                            handleSaveKey();
+                          }
+                        }
+                      }}
+                      className="sm:w-1/3 bg-[#161b22] border border-[#30363d] rounded-md px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500"
+                    />
+                    <input
+                      ref={keyInputRef}
                       type="password"
-                      placeholder={currentProvider === 'gemini' ? "Paste AIzaSy... and press Enter" : currentProvider === 'openai' ? "Paste sk-... and press Enter" : "Paste sk-ant-... and press Enter"}
+                      placeholder={currentProvider === 'gemini' ? "Paste AIzaSy..." : currentProvider === 'openai' ? "Paste sk-..." : "Paste sk-ant-..."}
                       value={newKeyInput}
                       onChange={(e) => setNewKeyInput(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') handleSaveKey(); }}
@@ -1223,7 +1330,7 @@ export const SettingsModal = ({
                       type="button" 
                       onClick={handleSaveKey} 
                       disabled={!newKeyInput.trim()} 
-                      className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors border border-transparent shadow-sm"
+                      className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-4 rounded-md text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-transparent shadow-sm shrink-0 h-10"
                     >
                       <Plus className="w-4 h-4" /> Save
                     </button>

@@ -83,10 +83,11 @@ export default function App() {
 
   const [settings, setSettings] = useState(() => {
     const savedByokKey = typeof window !== 'undefined' ? localStorage.getItem('BYOK_GEMINI_KEY') || '' : '';
-    const initialKey = persisted.current?.settings?.apiKey || persisted.current?.settings?.geminiApiKey || savedByokKey;
+    const rawKey = persisted.current?.settings?.apiKey || persisted.current?.settings?.geminiApiKey || savedByokKey;
+    const initialKey = typeof rawKey === 'object' ? (rawKey?.key || '') : (rawKey || '');
     const initialSavedList = persisted.current?.settings?.savedGeminiKeys?.length 
       ? persisted.current.settings.savedGeminiKeys 
-      : (initialKey ? [initialKey] : []);
+      : (initialKey ? [{ key: initialKey, name: '' }] : []);
 
     return {
       apiProvider: 'gemini',

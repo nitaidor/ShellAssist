@@ -1072,6 +1072,19 @@ html.theme-light:not(.theme-monochrome) .saved-item-active { background-color: #
   color: var(--theme-text-main) !important;
 }
 
+.saved-item-name { color: var(--theme-text-heading) !important; }
+.theme-terminal-green .saved-item-name { color: #4ade80 !important; }
+.theme-terminal-red .saved-item-name { color: #f87171 !important; }
+.theme-monochrome .saved-item-name, html.theme-monochrome .saved-item-name { color: #111827 !important; }
+html.theme-light:not(.theme-monochrome) .saved-item-name { color: #1e293b !important; }
+
+.btn-saved-action { color: var(--theme-text-muted) !important; }
+.btn-saved-action:hover { color: var(--theme-accent-border) !important; }
+.theme-terminal-green .btn-saved-action:hover { color: #4ade80 !important; }
+.theme-terminal-red .btn-saved-action:hover { color: #f87171 !important; }
+.theme-monochrome .btn-saved-action:hover { color: #111827 !important; }
+html.theme-light:not(.theme-monochrome) .btn-saved-action:hover { color: #2563eb !important; }
+
 /* History Circle Icons */
 .history-icon-badge,
 [class*="bg-sky-500\/10"],
