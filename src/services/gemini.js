@@ -159,7 +159,11 @@ const callAiProvider = async (systemPrompt, userMessages, settings) => {
       ''
     ).trim();
 
-    if (!key) throw new Error("Failed connection (no API key). Please add your API key in Settings.");
+    if (!key) {
+      const err = new Error("Failed connection (no API key). Please add your API key in Settings.");
+      err.isAuthError = true;
+      throw err;
+    }
 
     const contents = userMessages.map(m => ({
       role: m.role === 'assistant' ? 'model' : 'user',
@@ -190,27 +194,49 @@ const callAiProvider = async (systemPrompt, userMessages, settings) => {
         continue;
       }
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.candidates?.[0]?.content?.parts?.[0]?.text) {
         return data.candidates[0].content.parts[0].text;
       }
 
       const msg = data.error?.message || "";
-      lastErrorMsg = msg || res.statusText;
+      const statusText = data.error?.status || res.statusText || "";
+      lastErrorMsg = msg || statusText;
 
-      if (res.status === 400 && (msg.toLowerCase().includes("key") || msg.toLowerCase().includes("invalid"))) {
-        throw new Error("Failed connection (wrong API key). Please verify your API key in Settings.");
+      const lowerMsg = (msg + " " + statusText).toLowerCase();
+      if (
+        res.status === 400 ||
+        res.status === 401 ||
+        res.status === 403 ||
+        lowerMsg.includes("key") ||
+        lowerMsg.includes("invalid") ||
+        lowerMsg.includes("permission") ||
+        lowerMsg.includes("unauthenticated") ||
+        lowerMsg.includes("forbidden") ||
+        lowerMsg.includes("suspended")
+      ) {
+        const err = new Error("Failed connection (wrong API key). Please verify your API key in Settings.");
+        err.isAuthError = true;
+        throw err;
       }
     }
 
-    throw new Error(`Failed connection (${lastErrorMsg || "Model request error"})`);
+    const genericErr = new Error(`Failed connection (${lastErrorMsg || "Model request error"})`);
+    if (lastErrorMsg.toLowerCase().includes("key") || lastErrorMsg.toLowerCase().includes("permission")) {
+      genericErr.isAuthError = true;
+    }
+    throw genericErr;
   }
 
   // 2. OPENAI (CHATGPT)
   if (provider === 'openai') {
     const key = (settings?.openaiApiKey || (typeof window !== 'undefined' ? localStorage.getItem('BYOK_OPENAI_KEY') : '') || '').trim();
-    if (!key) throw new Error("Failed connection (no API key). Please add your API key in Settings.");
+    if (!key) {
+      const err = new Error("Failed connection (no API key). Please add your API key in Settings.");
+      err.isAuthError = true;
+      throw err;
+    }
 
     const messages = [
       { role: "system", content: systemPrompt },
@@ -230,10 +256,19 @@ const callAiProvider = async (systemPrompt, userMessages, settings) => {
       })
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!res.ok || data.error) {
-      if (res.status === 401 || (data.error?.message || "").toLowerCase().includes("key")) {
-        throw new Error("Failed connection (wrong API key). Please verify your API key in Settings.");
+      const msg = (data.error?.message || res.statusText || "").toLowerCase();
+      if (
+        res.status === 401 ||
+        res.status === 403 ||
+        msg.includes("key") ||
+        msg.includes("unauthorized") ||
+        msg.includes("forbidden")
+      ) {
+        const err = new Error("Failed connection (wrong API key). Please verify your API key in Settings.");
+        err.isAuthError = true;
+        throw err;
       }
       throw new Error(`Failed connection (${data.error?.message || res.statusText})`);
     }
@@ -243,7 +278,11 @@ const callAiProvider = async (systemPrompt, userMessages, settings) => {
   // 3. ANTHROPIC (CLAUDE)
   if (provider === 'claude') {
     const key = (settings?.claudeApiKey || (typeof window !== 'undefined' ? localStorage.getItem('BYOK_CLAUDE_KEY') : '') || '').trim();
-    if (!key) throw new Error("Failed connection (no API key). Please add your API key in Settings.");
+    if (!key) {
+      const err = new Error("Failed connection (no API key). Please add your API key in Settings.");
+      err.isAuthError = true;
+      throw err;
+    }
 
     const messages = userMessages.map(m => ({
       role: m.role === 'assistant' ? 'assistant' : 'user',
@@ -266,10 +305,19 @@ const callAiProvider = async (systemPrompt, userMessages, settings) => {
       })
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!res.ok || data.error) {
-      if (res.status === 401 || (data.error?.message || "").toLowerCase().includes("key")) {
-        throw new Error("Failed connection (wrong API key). Please verify your API key in Settings.");
+      const msg = (data.error?.message || res.statusText || "").toLowerCase();
+      if (
+        res.status === 401 ||
+        res.status === 403 ||
+        msg.includes("key") ||
+        msg.includes("authentication_error") ||
+        msg.includes("forbidden")
+      ) {
+        const err = new Error("Failed connection (wrong API key). Please verify your API key in Settings.");
+        err.isAuthError = true;
+        throw err;
       }
       throw new Error(`Failed connection (${data.error?.message || res.statusText})`);
     }
@@ -282,7 +330,9 @@ const callAiProvider = async (systemPrompt, userMessages, settings) => {
     const state = await getOllamaActiveState(cleanUrl);
 
     if (!state.serverRunning || !state.runningModel) {
-      throw new Error("Failed connection: Local AI is offline. Please start Ollama and a model in Settings.");
+      const err = new Error("Failed connection: Local AI is offline. Please start Ollama and a model in Settings.");
+      err.isAuthError = true;
+      throw err;
     }
 
     const activeModel = state.runningModel || (settings?.localModel || "").trim();
@@ -320,15 +370,72 @@ const callAiProvider = async (systemPrompt, userMessages, settings) => {
         });
       }
     } catch {
-      throw new Error("Failed connection: Local AI is offline or unreachable.");
+      const err = new Error("Failed connection: Local AI is offline or unreachable.");
+      err.isAuthError = true;
+      throw err;
     }
 
-    const data = await res.json();
-    if (!res.ok) throw new Error("Failed connection: Local AI returned an error.");
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error("Failed connection: Local AI returned an error.");
+      err.isAuthError = true;
+      throw err;
+    }
     return data.message?.content || "";
   }
 
   throw new Error("Unknown AI provider selected.");
+};
+
+export const isAuthError = (err) => {
+  if (!err) return false;
+  if (err.isAuthError) return true;
+  const msg = (err.message || String(err)).toLowerCase();
+  return (
+    msg.includes("wrong api key") ||
+    msg.includes("no api key") ||
+    msg.includes("api_key_invalid") ||
+    msg.includes("api key not valid") ||
+    msg.includes("invalid api key") ||
+    msg.includes("unauthenticated") ||
+    msg.includes("unauthorized") ||
+    msg.includes("forbidden") ||
+    msg.includes("permission denied") ||
+    msg.includes("local ai is offline") ||
+    msg.includes("offline or unreachable")
+  );
+};
+
+export const handleApiError = async (err, setApiStatus, settings = null) => {
+  if (!setApiStatus) return;
+  if (isAuthError(err)) {
+    setApiStatus('invalid');
+    return;
+  }
+  if (settings) {
+    try {
+      const provider = settings?.apiProvider || 'gemini';
+      if (provider === 'gemini') {
+        const key = (settings?.apiKey || settings?.geminiApiKey || (typeof window !== 'undefined' ? localStorage.getItem('BYOK_GEMINI_KEY') : '') || '').trim();
+        const ok = await validateGeminiKey(key);
+        if (!ok) setApiStatus('invalid');
+      } else if (provider === 'openai') {
+        const key = (settings?.openaiApiKey || (typeof window !== 'undefined' ? localStorage.getItem('BYOK_OPENAI_KEY') : '') || '').trim();
+        const ok = await validateOpenaiKey(key);
+        if (!ok) setApiStatus('invalid');
+      } else if (provider === 'claude') {
+        const key = (settings?.claudeApiKey || (typeof window !== 'undefined' ? localStorage.getItem('BYOK_CLAUDE_KEY') : '') || '').trim();
+        const ok = await validateClaudeKey(key);
+        if (!ok) setApiStatus('invalid');
+      } else if (provider === 'ollama') {
+        const end = (settings?.localEndpoint || 'http://localhost:11434').trim();
+        const ok = await validateOllamaEndpoint(end);
+        if (!ok) setApiStatus('invalid');
+      }
+    } catch {
+      setApiStatus('invalid');
+    }
+  }
 };
 
 // ----------------- APP INTERFACE FUNCTIONS -----------------

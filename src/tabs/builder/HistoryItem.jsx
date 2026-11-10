@@ -3,9 +3,9 @@ import { Star, History as HistoryIcon, ChevronUp, ChevronDown, Loader2, AlertCir
 import ContextDropdowns from '../../components/common/ContextDropdowns';
 import TurnItem from './TurnItem';
 import { generateId, formatSessionDate } from '../../utils/platform';
-import { fetchCommandGeneration } from '../../services/gemini';
+import { fetchCommandGeneration, handleApiError } from '../../services/gemini';
 
-export const HistoryItem = ({ item, onUpdateTurnDebugThread, onUpdateTurnTokens, onAddTurn, onToggleStar, isFavoriteList = false, settings, onCollapseTop }) => {
+export const HistoryItem = ({ item, onUpdateTurnDebugThread, onUpdateTurnTokens, onAddTurn, onToggleStar, isFavoriteList = false, settings, onCollapseTop, setApiStatus }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [refineInput, setRefineInput] = useState('');
   const [isRefining, setIsRefining] = useState(false);
@@ -26,12 +26,14 @@ export const HistoryItem = ({ item, onUpdateTurnDebugThread, onUpdateTurnTokens,
       const result = await fetchCommandGeneration(currentInput, item.turns, refineCtx, 'en-to-code', false, settings);
       if (cancelHistoryRefineRef.current !== refineId) return;
 
+      setApiStatus?.('valid');
       if (onAddTurn) {
         onAddTurn({ ...result, id: generateId(), prompt: currentInput, ctx: refineCtx, debugThread: [], mode: 'en-to-code', isStarred: false });
       }
       setRefineInput('');
     } catch (err) {
       if (cancelHistoryRefineRef.current !== refineId) return;
+      handleApiError(err, setApiStatus, settings);
       setRefineError(err.message || "Failed to refine command. Please verify your API key in Settings.");
     } finally {
       if (cancelHistoryRefineRef.current === refineId) {

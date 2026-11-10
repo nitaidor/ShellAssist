@@ -4,7 +4,7 @@ import CustomSelect from '../../components/common/CustomSelect';
 import ContextTags from '../../components/common/ContextTags';
 import DebugMessage from '../../components/terminal/DebugMessage';
 import StandaloneHistoryItem from './StandaloneHistoryItem';
-import { fetchStandaloneDebug } from '../../services/gemini';
+import { fetchStandaloneDebug, handleApiError } from '../../services/gemini';
 import { generateId, getContextFromFileExtension } from '../../utils/platform';
 import { OS_OPTIONS, SHELL_OPTIONS } from '../../constants/environment';
 
@@ -153,6 +153,7 @@ export const GeneralDebuggerTab = ({
       ]);
     } catch (err) {
       if (cancelDebuggerRef.current !== genId) return;
+      handleApiError(err, setApiStatus, settings);
       setDebugError(err.message || "Failed connection to AI provider. Please verify your API key in Settings.");
     } finally {
       if (cancelDebuggerRef.current === genId) {
@@ -191,6 +192,7 @@ export const GeneralDebuggerTab = ({
       setDebugHistory(prev => prev.map(s => s.id === activeDebugSessionId ? { ...s, thread: updatedThread, ctx: updatedCtx } : s));
     } catch (err) {
       if (cancelDebuggerRef.current !== genId) return;
+      handleApiError(err, setApiStatus, settings);
       setDebugError(err.message || "Failed connection to AI provider. Please verify your API key in Settings.");
       setFollowUpStandaloneInput(currentInput);
     } finally {
@@ -483,6 +485,7 @@ export const GeneralDebuggerTab = ({
                 key={session.id || index}
                 session={session}
                 settings={settings}
+                setApiStatus={setApiStatus}
                 onCollapseTop={() => setIsDebuggerExpanded(false)}
                 onUpdateThread={(thread, updatedCtx) => setDebugHistory(prev => prev.map(s => s.id === session.id ? { ...s, thread, ...(updatedCtx ? { ctx: updatedCtx } : {}) } : s))}
               />

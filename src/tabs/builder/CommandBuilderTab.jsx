@@ -5,7 +5,7 @@ import CustomSelect from '../../components/common/CustomSelect';
 import TurnItem from './TurnItem';
 import HistoryItem from './HistoryItem';
 import { generateId, formatSessionDate, getContextFromFileExtension } from '../../utils/platform';
-import { fetchCommandGeneration } from '../../services/gemini';
+import { fetchCommandGeneration, handleApiError } from '../../services/gemini';
 import { OS_OPTIONS, SHELL_OPTIONS, TYPE_OPTIONS } from '../../constants/environment';
 
 export const CommandBuilderTab = ({
@@ -201,6 +201,7 @@ export const CommandBuilderTab = ({
       ]);
     } catch (err) {
       if (cancelGenRef.current !== genId) return;
+      handleApiError(err, setApiStatus, settings);
       setGenerateError(err.message || "Failed connection to AI provider.");
     } finally {
       if (cancelGenRef.current === genId) {
@@ -230,6 +231,7 @@ export const CommandBuilderTab = ({
       setHistory(prev => prev.map(h => h.id === activeThreadId ? { ...h, turns: [...h.turns, nextTurn] } : h));
     } catch (err) {
       if (cancelGenRef.current !== refineId) return;
+      handleApiError(err, setApiStatus, settings);
       setGenerateError(err.message || "Failed to refine command.");
     } finally {
       if (cancelGenRef.current === refineId) {
@@ -559,6 +561,7 @@ export const CommandBuilderTab = ({
                     onAddTurn={(newTurn) => handleAddTurnToSession(item.id, newTurn)}
                     onToggleStar={handleToggleStar}
                     settings={settings}
+                    setApiStatus={setApiStatus}
                   />
                 ))}
               </div>
@@ -600,6 +603,7 @@ export const CommandBuilderTab = ({
                     onToggleStar={handleToggleStar}
                     isFavoriteList={true}
                     settings={settings}
+                    setApiStatus={setApiStatus}
                   />
                 ))}
               </div>

@@ -24,6 +24,7 @@ import { executeTerminalCommand, startTerminalSession, stopTerminalSession } fro
 import {
   fetchCommandGeneration,
   fetchInteractiveAutoDebug,
+  handleApiError,
   validateGeminiKey,
   validateOpenaiKey,
   validateClaudeKey,
@@ -464,6 +465,7 @@ export default function App() {
       setLastFailedSimulatedTurn(null);
     } catch (err) {
       if (simCancelRef.current !== genId) return;
+      handleApiError(err, setApiStatus, settings);
       setLastFailedSimulatedTurn({ isInitial, prompt: promptText });
       setSimulatedConnectionError(err.message || "Failed to generate simulated command.");
     } finally {
@@ -525,7 +527,8 @@ export default function App() {
           ...prev,
           turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, isAnalyzing: false, fixExplanation: debugRes.explanation, fixCommand: debugRes.fixCommand, requiresElevation: Boolean(debugRes.requiresElevation) } : c) } : t)
         } : prev);
-      } catch {
+      } catch (err) {
+        handleApiError(err, setApiStatus, settings);
         setActiveSimulatedSession(prev => prev ? {
           ...prev,
           turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, isAnalyzing: false, fixExplanation: 'Failed to simulate fix.', fixCommand: '', requiresElevation: false } : c) } : t)
@@ -582,7 +585,8 @@ export default function App() {
           ...prev,
           turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === nextCycleId ? { ...c, isAnalyzing: false, fixExplanation: debugRes.explanation, fixCommand: debugRes.fixCommand, requiresElevation: Boolean(debugRes.requiresElevation) } : c) } : t)
         } : prev);
-      } catch {
+      } catch (err) {
+        handleApiError(err, setApiStatus, settings);
         setActiveSimulatedSession(prev => prev ? {
           ...prev,
           turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === nextCycleId ? { ...c, isAnalyzing: false, fixExplanation: 'Failed to simulate subsequent fix.', fixCommand: '', requiresElevation: false } : c) } : t)
@@ -745,6 +749,7 @@ export default function App() {
       setLastFailedInteractiveTurn(null);
     } catch (err) {
       if (interactiveCancelRef.current !== genId) return;
+      handleApiError(err, setApiStatus, settings);
       setLastFailedInteractiveTurn({ isInitial, prompt: promptText });
       setInteractiveConnectionError(err.message || "Failed to generate command.");
     } finally {
@@ -805,7 +810,8 @@ export default function App() {
           ...prev,
           turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, isAnalyzing: false, fixExplanation: debugRes.explanation, fixCommand: debugRes.fixCommand, requiresElevation: Boolean(debugRes.requiresElevation) } : c) } : t)
         } : prev);
-      } catch {
+      } catch (err) {
+        handleApiError(err, setApiStatus, settings);
         setActiveInteractiveSession(prev => prev ? {
           ...prev,
           turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === cycleId ? { ...c, isAnalyzing: false, fixExplanation: 'Failed to generate automated fix.', fixCommand: '', requiresElevation: false } : c) } : t)
@@ -861,7 +867,8 @@ export default function App() {
           ...prev,
           turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === nextCycleId ? { ...c, isAnalyzing: false, fixExplanation: debugRes.explanation, fixCommand: debugRes.fixCommand, requiresElevation: Boolean(debugRes.requiresElevation) } : c) } : t)
         } : prev);
-      } catch {
+      } catch (err) {
+        handleApiError(err, setApiStatus, settings);
         setActiveInteractiveSession(prev => prev ? {
           ...prev,
           turns: prev.turns.map(t => t.id === turnId ? { ...t, debugCycles: t.debugCycles.map(c => c.id === nextCycleId ? { ...c, isAnalyzing: false, fixExplanation: 'Failed to analyze subsequent error.', fixCommand: '', requiresElevation: false } : c) } : t)

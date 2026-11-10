@@ -2,10 +2,10 @@ import React, { useState, useRef } from 'react';
 import { History as HistoryIcon, ChevronUp, ChevronDown, Loader2, AlertCircle, X, Ban } from 'lucide-react';
 import ContextTags from '../../components/common/ContextTags';
 import DebugMessage from '../../components/terminal/DebugMessage';
-import { fetchStandaloneDebug } from '../../services/gemini';
+import { fetchStandaloneDebug, handleApiError } from '../../services/gemini';
 import { formatSessionDate } from '../../utils/platform';
 
-export const StandaloneHistoryItem = ({ session, onUpdateThread, onCollapseTop, settings }) => {
+export const StandaloneHistoryItem = ({ session, onUpdateThread, onCollapseTop, settings, setApiStatus }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [followUpInput, setFollowUpInput] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -32,6 +32,8 @@ export const StandaloneHistoryItem = ({ session, onUpdateThread, onCollapseTop, 
       const result = await fetchStandaloneDebug([...session.thread, { role: "user", text: currentInput }], session.ctx, settings);
       if (cancelHistoryDebugRef.current !== debugId) return;
 
+      setApiStatus?.('valid');
+
       const updatedType = result.type || session.ctx?.type || 'Command';
       const updatedCtx = { ...session.ctx, type: updatedType };
 
@@ -42,6 +44,7 @@ export const StandaloneHistoryItem = ({ session, onUpdateThread, onCollapseTop, 
       ], updatedCtx);
     } catch (err) {
       if (cancelHistoryDebugRef.current !== debugId) return;
+      handleApiError(err, setApiStatus, settings);
       setHistoryError(err.message || "Failed connection to AI provider.");
       setFollowUpInput(currentInput);
     } finally {

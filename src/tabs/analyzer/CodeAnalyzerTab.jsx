@@ -5,7 +5,7 @@ import ContextTags from '../../components/common/ContextTags';
 import InteractiveCommand from '../../components/terminal/InteractiveCommand';
 import AnalyzerHistoryItem from './AnalyzerHistoryItem';
 import { generateId, getContextFromFileExtension } from '../../utils/platform';
-import { fetchCommandGeneration } from '../../services/gemini';
+import { fetchCommandGeneration, handleApiError } from '../../services/gemini';
 import { OS_OPTIONS, SHELL_OPTIONS } from '../../constants/environment';
 
 export const CodeAnalyzerTab = ({
@@ -149,6 +149,7 @@ export const CodeAnalyzerTab = ({
       ]);
     } catch (err) {
       if (cancelAnalyzerRef.current !== genId) return;
+      handleApiError(err, setApiStatus, settings);
       setAnalyzerError(err.message || "Failed connection to AI provider.");
     } finally {
       if (cancelAnalyzerRef.current === genId) {
