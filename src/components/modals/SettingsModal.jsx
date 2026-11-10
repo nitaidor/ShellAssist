@@ -982,7 +982,7 @@ export const SettingsModal = ({
                       className="p-1 btn-saved-action transition-colors"
                       title="Save name"
                     >
-                      <Check className="w-3.5 h-3.5 text-green-400" />
+                      <Check className="w-3.5 h-3.5 rename-check-icon" />
                     </button>
                     <button
                       type="button"
