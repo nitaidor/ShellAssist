@@ -487,35 +487,116 @@ ipcMain.handle('start-session', async (_event, { shell, elevate }) => {
   const readyFile = path.join(sessionDir, 'ready.flag');
   const stopFile = path.join(sessionDir, 'stop.flag');
 
-  const workerCode = [
-    '$OutputEncoding = [System.Text.Encoding]::UTF8',
-    '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
-    '"READY" | Out-File -FilePath "' + readyFile.replace(/\\/g, '\\\\') + '" -Encoding utf8',
-    'while (-not (Test-Path "' + stopFile.replace(/\\/g, '\\\\') + '")) {',
-    '  $reqFiles = Get-ChildItem -Path "' + sessionDir.replace(/\\/g, '\\\\') + '" -Filter "req_*.ps1" -ErrorAction SilentlyContinue',
-    '  foreach ($req in $reqFiles) {',
-    '    $id = $req.BaseName.Substring(4)',
-    '    $outFile = Join-Path "' + sessionDir.replace(/\\/g, '\\\\') + '" ("out_" + $id + ".txt")',
-    '    $statusFile = Join-Path "' + sessionDir.replace(/\\/g, '\\\\') + '" ("status_" + $id + ".txt")',
-    '    $Error.Clear()',
-    '    $global:LASTEXITCODE = 0',
-    '    try {',
-    '      $res = & $req.FullName *>&1 | Out-String -Width 160',
-    '      if ($null -ne $res) { $res.Trim() | Out-File -FilePath $outFile -Encoding utf8 } else { "" | Out-File -FilePath $outFile -Encoding utf8 }',
-    '      if (-not $? -or $Error.Count -gt 0 -or ($global:LASTEXITCODE -ne $null -and $global:LASTEXITCODE -ne 0)) {',
-    '        "error" | Out-File -FilePath $statusFile -Encoding utf8',
-    '      } else {',
-    '        "success" | Out-File -FilePath $statusFile -Encoding utf8',
-    '      }',
-    '    } catch {',
-    '      ($_ | Out-String -Width 160).Trim() | Out-File -FilePath $outFile -Encoding utf8',
-    '      "error" | Out-File -FilePath $statusFile -Encoding utf8',
-    '    }',
-    '    Remove-Item $req.FullName -Force -ErrorAction SilentlyContinue',
-    '  }',
-    '  Start-Sleep -Milliseconds 120',
-    '}'
-  ].join('\r\n');
+  const cleanShell = (shell || 'PowerShell').replace(/\s*\(Elevated\)/i, '').trim();
+  const isCmd = cleanShell.toLowerCase().includes('cmd');
+  const readyFileEscaped = readyFile.replace(/\\/g, '\\\\');
+  const stopFileEscaped = stopFile.replace(/\\/g, '\\\\');
+  const sessionDirEscaped = sessionDir.replace(/\\/g, '\\\\');
+
+  const workerCode = isCmd
+    ? [
+        '$OutputEncoding = [System.Text.Encoding]::UTF8',
+        '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
+        '$psi = New-Object System.Diagnostics.ProcessStartInfo',
+        '$psi.FileName = "cmd.exe"',
+        '$psi.Arguments = "/q"',
+        '$psi.RedirectStandardInput = $true',
+        '$psi.RedirectStandardOutput = $true',
+        '$psi.RedirectStandardError = $true',
+        '$psi.UseShellExecute = $false',
+        '$psi.CreateNoWindow = $true',
+        '$cmdProc = New-Object System.Diagnostics.Process',
+        '$cmdProc.StartInfo = $psi',
+        '$global:cmdErrLines = [System.Collections.Generic.List[string]]::new()',
+        '$errAction = { param($sender, $e) if ($e.Data -ne $null) { $global:cmdErrLines.Add($e.Data) } }',
+        '$job = Register-ObjectEvent -InputObject $cmdProc -EventName "ErrorDataReceived" -Action $errAction',
+        '$cmdProc.Start() | Out-Null',
+        '$cmdProc.BeginErrorReadLine()',
+        '$cmdProc.StandardInput.WriteLine("@echo off")',
+        '$cmdProc.StandardInput.WriteLine("echo __SA_INIT_READY__")',
+        'while (-not $cmdProc.StandardOutput.EndOfStream) {',
+        '  $initLine = $cmdProc.StandardOutput.ReadLine()',
+        '  if ($initLine -match "__SA_INIT_READY__") { break }',
+        '}',
+        '"READY" | Out-File -FilePath "' + readyFileEscaped + '" -Encoding utf8',
+        'while (-not (Test-Path "' + stopFileEscaped + '")) {',
+        '  $reqFiles = Get-ChildItem -Path "' + sessionDirEscaped + '" -Filter "req_*.ps1" -ErrorAction SilentlyContinue',
+        '  foreach ($req in $reqFiles) {',
+        '    $id = $req.BaseName.Substring(4)',
+        '    $outFile = Join-Path "' + sessionDirEscaped + '" ("out_" + $id + ".txt")',
+        '    $statusFile = Join-Path "' + sessionDirEscaped + '" ("status_" + $id + ".txt")',
+        '    $global:cmdErrLines.Clear()',
+        '    $rawCmd = Get-Content -Path $req.FullName -Raw -Encoding utf8',
+        '    $sentinel = "__SA_SENTINEL_" + $id + "__"',
+        '    $cmdProc.StandardInput.WriteLine("(call )")',
+        '    $cmdProc.StandardInput.WriteLine($rawCmd.TrimEnd())',
+        '    $cmdProc.StandardInput.WriteLine("echo " + $sentinel + "%ERRORLEVEL%__")',
+        '    $outLines = [System.Collections.Generic.List[string]]::new()',
+        '    $exitCode = 0',
+        '    while (-not $cmdProc.StandardOutput.EndOfStream) {',
+        '      $line = $cmdProc.StandardOutput.ReadLine()',
+        '      if ($line -eq $null) { break }',
+        '      if ($line -match ($sentinel + "(-?\\d+)__")) {',
+        '        $exitCode = [int]$matches[1]',
+        '        break',
+        '      }',
+        '      $outLines.Add($line)',
+        '    }',
+        '    Start-Sleep -Milliseconds 60',
+        '    $combined = @()',
+        '    if ($outLines.Count -gt 0) { $combined += ($outLines -join "`r`n") }',
+        '    if ($global:cmdErrLines.Count -gt 0) { $combined += ($global:cmdErrLines -join "`r`n") }',
+        '    $resText = ($combined -join "`r`n").Trim()',
+        '    $resText | Out-File -FilePath $outFile -Encoding utf8',
+        '    if ($exitCode -ne 0) {',
+        '      "error" | Out-File -FilePath $statusFile -Encoding utf8',
+        '    } else {',
+        '      "success" | Out-File -FilePath $statusFile -Encoding utf8',
+        '    }',
+        '    Remove-Item $req.FullName -Force -ErrorAction SilentlyContinue',
+        '  }',
+        '  Start-Sleep -Milliseconds 120',
+        '}',
+        'if ($cmdProc -ne $null -and -not $cmdProc.HasExited) {',
+        '  try {',
+        '    $cmdProc.StandardInput.WriteLine("exit")',
+        '    $cmdProc.WaitForExit(1000)',
+        '    if (-not $cmdProc.HasExited) { $cmdProc.Kill() }',
+        '  } catch {}',
+        '}',
+        'if ($job -ne $null) {',
+        '  Unregister-Event -SourceIdentifier $job.Name -ErrorAction SilentlyContinue',
+        '}'
+      ].join('\r\n')
+    : [
+        '$OutputEncoding = [System.Text.Encoding]::UTF8',
+        '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8',
+        '"READY" | Out-File -FilePath "' + readyFileEscaped + '" -Encoding utf8',
+        'while (-not (Test-Path "' + stopFileEscaped + '")) {',
+        '  $reqFiles = Get-ChildItem -Path "' + sessionDirEscaped + '" -Filter "req_*.ps1" -ErrorAction SilentlyContinue',
+        '  foreach ($req in $reqFiles) {',
+        '    $id = $req.BaseName.Substring(4)',
+        '    $outFile = Join-Path "' + sessionDirEscaped + '" ("out_" + $id + ".txt")',
+        '    $statusFile = Join-Path "' + sessionDirEscaped + '" ("status_" + $id + ".txt")',
+        '    $Error.Clear()',
+        '    $global:LASTEXITCODE = 0',
+        '    try {',
+        '      $res = . $req.FullName *>&1 | Out-String -Width 160',
+        '      if ($null -ne $res) { $res.Trim() | Out-File -FilePath $outFile -Encoding utf8 } else { "" | Out-File -FilePath $outFile -Encoding utf8 }',
+        '      if (-not $? -or $Error.Count -gt 0 -or ($global:LASTEXITCODE -ne $null -and $global:LASTEXITCODE -ne 0)) {',
+        '        "error" | Out-File -FilePath $statusFile -Encoding utf8',
+        '      } else {',
+        '        "success" | Out-File -FilePath $statusFile -Encoding utf8',
+        '      }',
+        '    } catch {',
+        '      ($_ | Out-String -Width 160).Trim() | Out-File -FilePath $outFile -Encoding utf8',
+        '      "error" | Out-File -FilePath $statusFile -Encoding utf8',
+        '    }',
+        '    Remove-Item $req.FullName -Force -ErrorAction SilentlyContinue',
+        '  }',
+        '  Start-Sleep -Milliseconds 120',
+        '}'
+      ].join('\r\n');
 
   fs.writeFileSync(workerScriptPath, workerCode, 'utf8');
 
@@ -571,9 +652,7 @@ ipcMain.handle('run-command', async (_event, { command, shell, elevate, useActiv
       const outFile = path.join(activeSessionDir, `out_${cmdId}.txt`);
       const statusFile = path.join(activeSessionDir, `status_${cmdId}.txt`);
 
-      const body = cleanShell === 'CMD'
-        ? `cmd.exe /c ${JSON.stringify(command)}`
-        : command;
+      const body = command;
 
       fs.writeFileSync(reqFile, body, 'utf8');
 
