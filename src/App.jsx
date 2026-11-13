@@ -18,7 +18,7 @@ import {
   ClearHistoryModal
 } from './components/modals/ConfirmationModals';
 import { loadPersistedState, savePersistedState } from './utils/storage';
-import { detectHostOS, getInteractiveShellOptions, generateId } from './utils/platform';
+import { detectHostOS, getInteractiveShellOptions, generateId, isDesktopEnvironment } from './utils/platform';
 import { SHELL_OPTIONS } from './constants/environment';
 import { executeTerminalCommand, startTerminalSession, stopTerminalSession } from './services/terminal';
 import {
@@ -194,9 +194,28 @@ export default function App() {
   }, [settings.apiProvider, settings.apiKey, settings.geminiApiKey, settings.openaiApiKey, settings.claudeApiKey, settings.localEndpoint, settings.localModel]);
 
   // Host OS & Desktop Detection
-  const isDesktopEnv = typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.runCommand === 'function';
+  const isDesktopEnv = isDesktopEnvironment();
   const hostOs = isDesktopEnv ? detectHostOS() : 'WebView';
   const interactiveShellOptions = hostOs === 'WebView' ? ['N/A'] : getInteractiveShellOptions(hostOs);
+
+  // WebView / Browser Environment Fallback: automatically disable terminal integration & local AI
+  useEffect(() => {
+    if (!isDesktopEnv) {
+      setSettings(prev => {
+        let changed = false;
+        const next = { ...prev };
+        if (next.enableExecution) {
+          next.enableExecution = false;
+          changed = true;
+        }
+        if (next.apiProvider === 'ollama') {
+          next.apiProvider = 'gemini';
+          changed = true;
+        }
+        return changed ? next : prev;
+      });
+    }
+  }, [isDesktopEnv]);
 
   const [selectedInteractiveShell, setSelectedInteractiveShell] = useState(() => {
     const saved = persisted.current?.tabTags?.interactive?.shell;
@@ -383,6 +402,7 @@ export default function App() {
 
   // Terminal integration toggle
   const handleToggleTerminalIntegration = (checked) => {
+    if (!isDesktopEnv) return;
     if (checked) setShowTerminalDisclaimerModal(true);
     else setSettings(prev => ({ ...prev, enableExecution: false }));
   };
@@ -1322,6 +1342,7 @@ export default function App() {
           isDarkMode={isDarkMode}
           setIsDarkMode={setIsDarkMode}
           onToggleTerminalIntegration={handleToggleTerminalIntegration}
+          isDesktop={isDesktopEnv}
         />
 
         <HelpModal

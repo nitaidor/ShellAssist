@@ -143,7 +143,8 @@ export const SettingsModal = ({
   setApiStatus,
   isDarkMode,
   setIsDarkMode,
-  onToggleTerminalIntegration
+  onToggleTerminalIntegration,
+  isDesktop = true
 }) => {
   const [newKeyInput, setNewKeyInput] = useState('');
   const [newKeyName, setNewKeyName] = useState('');
@@ -1281,16 +1282,27 @@ export const SettingsModal = ({
               </button>
               <button
                 type="button"
+                disabled={!isDesktop}
+                title={!isDesktop ? "This feature requires running ShellAssist as a desktop application." : ""}
                 onClick={() => {
+                  if (!isDesktop) return;
                   if (currentProvider !== 'ollama') {
                     if (setApiStatus) setApiStatus('checking');
                     setSettings((prev) => ({ ...prev, apiProvider: 'ollama' }));
                   }
                 }}
-                className={`p-3 rounded-md border text-left transition-all ${currentProvider === 'ollama' ? 'provider-card-active' : 'border-[#30363d] bg-[#0d1117] text-gray-400 hover:border-gray-500'}`}
+                className={`p-3 rounded-md border text-left transition-all ${
+                  !isDesktop
+                    ? 'provider-card-disabled-webview'
+                    : currentProvider === 'ollama'
+                      ? 'provider-card-active'
+                      : 'border-[#30363d] bg-[#0d1117] text-gray-400 hover:border-gray-500'
+                }`}
               >
                 <p className="text-xs">Ollama (Local)</p>
-                <span className="text-[10px] text-gray-500 font-normal">100% Private</span>
+                <span className="text-[10px] text-gray-500 font-normal">
+                  {!isDesktop ? 'Desktop Only' : '100% Private'}
+                </span>
               </button>
             </div>
 
@@ -1544,14 +1556,28 @@ export const SettingsModal = ({
           <section>
             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 border-b border-[#30363d] pb-2">Terminal Integration</h3>
             <div className="space-y-4">
-              <label className="flex items-center justify-between bg-[#0d1117] p-4 rounded-md border border-[#30363d] cursor-pointer hover:border-gray-500 transition-colors">
+              <label 
+                title={!isDesktop ? "This feature requires running ShellAssist as a desktop application." : ""}
+                className={`flex items-center justify-between bg-[#0d1117] p-4 rounded-md border border-[#30363d] transition-colors ${
+                  !isDesktop ? 'terminal-integration-disabled-webview' : 'cursor-pointer hover:border-gray-500'
+                }`}
+              >
                 <div>
                   <p className="font-medium text-gray-200">Terminal Integration</p>
                   <p className="text-xs text-gray-500 max-w-md mt-1">
                     Enables both the <strong>Interactive Terminal</strong> tab and <strong>1-Click Command Execution</strong>. Commands requiring administrator privileges will trigger an OS-level elevation prompt.
                   </p>
                 </div>
-                <input type="checkbox" checked={settings.enableExecution} onChange={(e) => onToggleTerminalIntegration(e.target.checked)} className="custom-checkbox shrink-0" />
+                <input 
+                  type="checkbox" 
+                  disabled={!isDesktop}
+                  checked={Boolean(isDesktop && settings.enableExecution)} 
+                  onChange={(e) => {
+                    if (!isDesktop) return;
+                    onToggleTerminalIntegration(e.target.checked);
+                  }} 
+                  className={`custom-checkbox shrink-0 ${!isDesktop ? 'cursor-not-allowed' : ''}`} 
+                />
               </label>
             </div>
           </section>

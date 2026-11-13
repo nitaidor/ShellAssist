@@ -1,5 +1,9 @@
 import { SHELL_OPTIONS } from '../constants/environment';
 
+export const isDesktopEnvironment = () => {
+  return typeof window !== 'undefined' && !!window.electronAPI && typeof window.electronAPI.runCommand === 'function';
+};
+
 export const detectHostOS = () => {
   if (typeof window === 'undefined' || !window.navigator) return 'Windows';
   const ua = window.navigator.userAgent.toLowerCase();

@@ -1535,3 +1535,33 @@ html.theme-light:not(.theme-monochrome) .disclaimer-box strong { color: #450a0a 
 /* Disabled State */
 button:disabled { opacity: 0.5 !important; cursor: not-allowed !important; background-color: var(--theme-surface) !important; border-color: var(--theme-border) !important; color: var(--theme-text-muted) !important; }
 button:disabled * { color: var(--theme-text-muted) !important; stroke: var(--theme-text-muted) !important; }
+
+/* Disabled Features in WebView / Restricted Mode (Theme Adaptive) */
+.provider-card-disabled-webview {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+  background-color: var(--theme-surface) !important;
+  border: 1px solid var(--theme-border) !important;
+  color: var(--theme-text-muted) !important;
+}
+.provider-card-disabled-webview * {
+  color: var(--theme-text-muted) !important;
+  stroke: var(--theme-text-muted) !important;
+}
+
+.terminal-integration-disabled-webview {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+  border-color: var(--theme-border) !important;
+  background-color: var(--theme-surface) !important;
+}
+.terminal-integration-disabled-webview * {
+  color: var(--theme-text-muted) !important;
+  cursor: not-allowed !important;
+}
+.terminal-integration-disabled-webview .custom-checkbox {
+  opacity: 0.45 !important;
+  cursor: not-allowed !important;
+  border-color: var(--theme-border) !important;
+  background-color: var(--theme-bg) !important;
+}
