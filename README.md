@@ -6,6 +6,7 @@ An AI-powered desktop assistant to build, analyze, debug, simulate, and execute 
 Working in the terminal often means memorizing obscure flags, constantly searching for syntax, and nervously running complex scripts copied from the internet. ShellAssist was built to take the guesswork and risk out of the command line by giving you a safe, intelligent workspace to write, understand, and test shell commands before they ever touch your actual system.
 
 ## Key Features
+
 * **Command Builder:** English-to-code generation and refinement.
 * **Simulated Terminal:** Safe sandbox to test commands via AI simulation.
 * **Interactive Terminal:** Live local shell execution & auto-debug loops.
@@ -13,8 +14,13 @@ Working in the terminal often means memorizing obscure flags, constantly searchi
 * **Multi-AI Engine:** Bring your own API key (Gemini, ChatGPT, Claude) or run 100% privately via local Ollama.
 * **5 Themes:** Dark, Light, Terminal Green, Terminal Red, and Monochrome.
 
-## Installation
+## Live Demo
+Run ShellAssist directly in your browser: [nitaidor.github.io/ShellAssist](https://nitaidor.github.io/ShellAssist/)
 
+* **Supported in Web:** Command Builder, Code Analyzer, General Debugger, and Simulated Terminal.
+* **Requires Desktop App:** Live terminal command execution on host and local offline Ollama models.
+
+## Installation
 ### Option 1: Download Pre-Built Executables
 Download the latest installer or portable executable directly from the [Releases page](https://github.com/nitaidor/ShellAssist/releases/latest).
 
@@ -22,9 +28,15 @@ Download the latest installer or portable executable directly from the [Releases
 Before you begin, ensure you have [Node.js](https://nodejs.org/) installed.
 
 1. Clone the repository:
-   ```bash
-   git clone https://github.com/nitaidor/ShellAssist.git
-   ```
+
+   **SSH:**
+     ```bash
+     git clone git@github.com:nitaidor/ShellAssist.git
+     ```
+   **HTTPS:**
+     ```bash
+     git clone https://github.com/nitaidor/ShellAssist.git
+     ```
 2. Navigate to the project directory:
    ```bash
    cd ShellAssist
@@ -35,6 +47,7 @@ Before you begin, ensure you have [Node.js](https://nodejs.org/) installed.
    ```
 
 ## Usage (Development)
+
 * To install dependencies manually, run:
    ```bash
    npm install
@@ -56,6 +69,7 @@ Before you begin, ensure you have [Node.js](https://nodejs.org/) installed.
 Distributed under the MIT License. See `LICENSE` for more information.
 
 ## Acknowledgments
+
 * Desktop framework by [Electron](https://www.electronjs.org) (MIT License).
 * Frontend library by [React](https://react.dev) (MIT License).
 * UI framework by [Tailwind CSS](https://tailwindcss.com) (MIT License).
