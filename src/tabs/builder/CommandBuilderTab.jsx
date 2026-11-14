@@ -248,6 +248,7 @@ export const CommandBuilderTab = ({
   const isActiveRefineDisabled = isRefining || (!refineInput.trim() && !activeCtxChanged);
 
   const displayHistory = sortedHistory.filter(item => item.id !== activeThreadId);
+  const displayFavorites = sortedFavorites.filter(item => item.id !== activeThreadId);
 
   const validOsOptions = uploadedFile ? uploadedFile.validOs : OS_OPTIONS;
   const validShellOptions = uploadedFile ? [uploadedFile.shell] : (SHELL_OPTIONS[builderCtx.os] || []);
@@ -592,7 +593,7 @@ export const CommandBuilderTab = ({
                     </div>
                   </div>
                 )}
-                {filterHistory(sortedFavorites, librarySearch).map((item) => (
+                {filterHistory(displayFavorites, librarySearch).map((item) => (
                   <HistoryItem
                     key={`fav-${item.id}`}
                     item={item}
