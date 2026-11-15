@@ -49,7 +49,7 @@ export const CodeAnalyzerTab = ({
     
     // Strict extension validation fallback in case OS file-picker bypass is used
     const ext = file.name.slice((Math.max(0, file.name.lastIndexOf(".")) || Infinity) + 1).toLowerCase();
-    const validExts = ['ps1', 'bat', 'cmd', 'sh', 'zsh', 'tf', 'yml', 'yaml', 'txt'];
+    const validExts = ['ps1', 'bat', 'cmd', 'sh', 'zsh', 'fish', 'tf', 'yml', 'yaml', 'txt'];
     if (!validExts.includes(ext)) {
       setAnalyzerError(`Unsupported file extension: .${ext}. Please upload a supported script format.`);
       e.target.value = null;
@@ -218,7 +218,7 @@ export const CodeAnalyzerTab = ({
                     options={validShellOptions}
                     disabled={!!uploadedFile}
                   />
-                  <input type="file" ref={fileInputRef} className="hidden" accept=".ps1,.bat,.cmd,.sh,.zsh,.tf,.yml,.yaml,.txt" onChange={handleFileUpload} />
+                  <input type="file" ref={fileInputRef} className="hidden" accept=".ps1,.bat,.cmd,.sh,.zsh,.fish,.tf,.yml,.yaml,.txt" onChange={handleFileUpload} />
                   <button
                     onClick={() => uploadedFile ? handleRemoveFile() : fileInputRef.current.click()}
                     className="px-3 py-2 rounded-md text-xs font-semibold uppercase tracking-wider flex items-center gap-2 border transition-colors shadow-sm h-10 bg-[#161b22] border-[#30363d] text-gray-300 hover:bg-[#21262d] hover:text-white"

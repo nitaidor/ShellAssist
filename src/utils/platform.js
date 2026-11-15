@@ -30,6 +30,8 @@ export const getExtension = (shell = '') => {
   const cleanShell = shell.replace(/\s*\(Elevated\)/i, '').trim();
   if (['PowerShell'].includes(cleanShell)) return '.ps1';
   if (['CMD'].includes(cleanShell)) return '.bat';
+  if (['Zsh'].includes(cleanShell)) return '.zsh';
+  if (['Fish'].includes(cleanShell)) return '.fish';
   if (['Docker Compose'].includes(cleanShell)) return '.yml';
   if (['Terraform CLI', 'HCL'].includes(cleanShell)) return '.tf';
   return '.sh'; 
@@ -44,6 +46,7 @@ export const getContextFromFileExtension = (filename) => {
     case 'cmd': return { shell: 'CMD', validOs: ['Windows'] };
     case 'sh': return { shell: 'Bash', validOs: ['Linux', 'macOS'] };
     case 'zsh': return { shell: 'Zsh', validOs: ['macOS', 'Linux'] };
+    case 'fish': return { shell: 'Fish', validOs: ['Linux', 'macOS'] };
     case 'tf': return { shell: 'Terraform CLI', validOs: ['Terraform'] };
     case 'yml':
     case 'yaml': return { shell: 'Docker Compose', validOs: ['Docker'] };

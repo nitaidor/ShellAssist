@@ -6,8 +6,32 @@ const fs = require('fs');
 
 // Enforce AppUserModelId and exact "ShellAssist" AppData folder name & casing on disk
 app.setName('ShellAssist');
+if (process.platform === 'linux') {
+  // Prevent SUID sandbox / AppArmor launch failures for AppImage & deb packages on Ubuntu 24.04+ and modern Linux distros
+  app.commandLine.appendSwitch('no-sandbox');
+}
 if (process.platform === 'win32') {
   app.setAppUserModelId('com.shellassist.desktop');
+} else {
+  // Ensure GUI-launched macOS / Linux builds include Homebrew & local user binary paths
+  const extraPaths = [
+    '/opt/homebrew/bin',
+    '/opt/homebrew/sbin',
+    '/usr/local/bin',
+    '/usr/local/sbin',
+    '/usr/bin',
+    '/bin',
+    '/usr/sbin',
+    '/sbin',
+    path.join(os.homedir(), '.local', 'bin')
+  ];
+  const currentPaths = (process.env.PATH || '').split(':').filter(Boolean);
+  for (const p of extraPaths) {
+    if (!currentPaths.includes(p)) {
+      currentPaths.push(p);
+    }
+  }
+  process.env.PATH = currentPaths.join(':');
 }
 const appDataRoot = app.getPath('appData');
 const userDataDir = path.join(appDataRoot, 'ShellAssist');
@@ -89,6 +113,21 @@ function getWinOllamaPaths() {
   };
 }
 
+function getUnixOllamaBinary() {
+  const candidates = [
+    '/opt/homebrew/bin/ollama',
+    '/usr/local/bin/ollama',
+    '/usr/bin/ollama',
+    '/bin/ollama',
+    '/Applications/Ollama.app/Contents/Resources/ollama',
+    path.join(os.homedir(), '.local', 'bin', 'ollama')
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return null;
+}
+
 function checkIsOllamaInstalled() {
   return new Promise((resolve) => {
     if (process.platform === 'win32') {
@@ -100,6 +139,9 @@ function checkIsOllamaInstalled() {
         resolve(!err);
       });
     } else {
+      if (getUnixOllamaBinary()) {
+        return resolve(true);
+      }
       exec('which ollama', (err) => {
         resolve(!err);
       });
@@ -129,6 +171,11 @@ function killOllamaSync() {
       execSync('taskkill /F /IM "ollama.exe" /T', { windowsHide: true, stdio: 'ignore' });
     } catch {}
   } else {
+    if (process.platform === 'darwin') {
+      try {
+        execSync('killall "Ollama" 2>/dev/null', { stdio: 'ignore' });
+      } catch {}
+    }
     try {
       execSync('pkill -f "ollama"', { stdio: 'ignore' });
     } catch {}
@@ -253,7 +300,8 @@ ipcMain.handle('start-ollama', async () => {
         }, 3000);
       });
     } else {
-      const child = spawn('ollama', ['serve'], {
+      const ollamaBin = getUnixOllamaBinary() || 'ollama';
+      const child = spawn(ollamaBin, ['serve'], {
         detached: true,
         stdio: 'ignore'
       });
@@ -405,6 +453,49 @@ let activeSessionDir = null;
 let activeSessionElevated = false;
 let activeSessionShell = 'PowerShell';
 
+function resolveUnixShell(cleanShell) {
+  const normalized = (cleanShell || '').trim().toLowerCase();
+  let target = null;
+  let candidates = [];
+
+  if (normalized === 'fish') {
+    target = 'fish';
+    candidates = ['/opt/homebrew/bin/fish', '/usr/local/bin/fish', '/usr/bin/fish', '/bin/fish'];
+  } else if (normalized === 'zsh') {
+    target = 'zsh';
+    candidates = ['/bin/zsh', '/usr/bin/zsh', '/opt/homebrew/bin/zsh', '/usr/local/bin/zsh'];
+  } else if (normalized === 'bash') {
+    target = 'bash';
+    candidates = ['/bin/bash', '/usr/bin/bash', '/opt/homebrew/bin/bash', '/usr/local/bin/bash'];
+  } else {
+    // DevOps CLI tools (Docker, Kubectl, AWS, Terraform) run inside the system's default shell
+    target = process.platform === 'darwin' ? 'zsh' : 'bash';
+    candidates = process.platform === 'darwin'
+      ? ['/bin/zsh', '/usr/bin/zsh', '/bin/bash', '/usr/bin/bash']
+      : ['/bin/bash', '/usr/bin/bash', '/bin/sh'];
+  }
+
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      return { ok: true, binary: c, type: target };
+    }
+  }
+
+  try {
+    const found = execSync(`which ${target}`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    if (found) {
+      return { ok: true, binary: found, type: target };
+    }
+  } catch {}
+
+  return {
+    ok: false,
+    binary: null,
+    type: target,
+    message: `${cleanShell} is not installed or could not be found on this system.`
+  };
+}
+
 function cleanupSession() {
   const dirToRemove = activeSessionDir;
   activeSessionDir = null;
@@ -421,7 +512,8 @@ function cleanupSession() {
 }
 
 function createWindow() {
-  const iconPath = path.join(__dirname, '../assets/icon.ico');
+  const iconFile = process.platform === 'win32' ? 'icon.ico' : 'icon.png';
+  const iconPath = path.join(__dirname, '../assets', iconFile);
   const win = new BrowserWindow({
     title: 'ShellAssist',
     icon: fs.existsSync(iconPath) ? iconPath : undefined,
@@ -480,7 +572,121 @@ ipcMain.handle('start-session', async (_event, { shell, elevate }) => {
   activeSessionDir = sessionDir;
 
   if (!isWin) {
-    return { status: 'connected' };
+    try { fs.chmodSync(sessionDir, 0o777); } catch (e) {}
+    const cleanUnixShell = (shell || (process.platform === 'darwin' ? 'Zsh' : 'Bash')).replace(/\s*\(Elevated\)/i, '').trim();
+    const resolved = resolveUnixShell(cleanUnixShell);
+    if (!resolved.ok) {
+      cleanupSession();
+      return { status: 'failed', message: resolved.message };
+    }
+
+    const workerScriptPath = path.join(sessionDir, 'worker.sh');
+    const readyFile = path.join(sessionDir, 'ready.flag');
+    const stopFile = path.join(sessionDir, 'stop.flag');
+
+    const unixWorkerCode = resolved.type === 'fish'
+      ? [
+          'umask 000',
+          `cd "${os.homedir()}" 2>/dev/null; or true`,
+          `echo "READY" > "${readyFile}"`,
+          `while not test -e "${stopFile}"`,
+          `  for req in (find "${sessionDir}" -maxdepth 1 -name 'req_*.sh' 2>/dev/null)`,
+          `    if not test -e "$req"`,
+          `      continue`,
+          `    end`,
+          `    set req_base (basename "$req" .sh)`,
+          `    set id (string replace -r '^req_' '' -- "$req_base")`,
+          `    set outFile "${sessionDir}/out_$id.txt"`,
+          `    set statusFile "${sessionDir}/status_$id.txt"`,
+          `    source "$req" > "$outFile" 2>&1`,
+          `    set exitCode $status`,
+          `    rm -f "$req"`,
+          `    if test $exitCode -ne 0`,
+          `      echo "error" > "$statusFile"`,
+          `    else`,
+          `      echo "success" > "$statusFile"`,
+          `    end`,
+          `  end`,
+          `  sleep 0.12`,
+          `end`
+        ].join('\n')
+      : [
+          'umask 000',
+          '[ -n "$ZSH_VERSION" ] && setopt NULL_GLOB NO_NOMATCH 2>/dev/null || true',
+          `cd "${os.homedir()}" 2>/dev/null || true`,
+          `echo "READY" > "${readyFile}"`,
+          `while [ ! -e "${stopFile}" ]; do`,
+          `  for req in "${sessionDir}"/req_*.sh; do`,
+          `    [ -e "$req" ] || continue`,
+          `    req_base=$(basename "$req" .sh)`,
+          `    id="\${req_base#req_}"`,
+          `    outFile="${sessionDir}/out_\${id}.txt"`,
+          `    statusFile="${sessionDir}/status_\${id}.txt"`,
+          `    eval "$(cat "$req")" > "$outFile" 2>&1`,
+          `    exitCode=$?`,
+          `    rm -f "$req"`,
+          `    if [ $exitCode -ne 0 ]; then`,
+          `      echo "error" > "$statusFile"`,
+          `    else`,
+          `      echo "success" > "$statusFile"`,
+          `    fi`,
+          `  done`,
+          `  sleep 0.12`,
+          `done`
+        ].join('\n');
+
+    fs.writeFileSync(workerScriptPath, unixWorkerCode + '\n', { encoding: 'utf8', mode: 0o755 });
+
+    return new Promise((resolve) => {
+      const waitForReady = () => {
+        let checks = 0;
+        const timer = setInterval(() => {
+          checks++;
+          if (fs.existsSync(readyFile)) {
+            clearInterval(timer);
+            resolve({ status: 'connected' });
+          } else if (checks > 120) {
+            clearInterval(timer);
+            if (activeSessionDir === sessionDir) cleanupSession();
+            resolve({ status: 'failed', message: 'Timed out waiting for terminal session to initialize.' });
+          }
+        }, 150);
+      };
+
+      if (!activeSessionElevated) {
+        try {
+          const child = spawn(resolved.binary, [workerScriptPath], {
+            detached: true,
+            stdio: 'ignore',
+            cwd: os.homedir()
+          });
+          child.on('error', (err) => {
+            if (activeSessionDir === sessionDir) cleanupSession();
+            resolve({ status: 'failed', message: err.message || 'Failed to start terminal session.' });
+          });
+          child.unref();
+          waitForReady();
+        } catch (err) {
+          if (activeSessionDir === sessionDir) cleanupSession();
+          resolve({ status: 'failed', message: err.message || 'Failed to start terminal session.' });
+        }
+      } else {
+        const elevatedLaunchCmd = process.platform === 'darwin'
+          ? `osascript -e 'do shell script "\\"${resolved.binary}\\" \\"${workerScriptPath}\\" >/dev/null 2>&1 &" with administrator privileges'`
+          : `pkexec /bin/sh -c '"${resolved.binary}" "${workerScriptPath}" >/dev/null 2>&1 &'`;
+
+        exec(elevatedLaunchCmd, (err) => {
+          if (err) {
+            if (activeSessionDir === sessionDir) cleanupSession();
+            return resolve({
+              status: 'failed',
+              message: 'Administrator elevation was declined or cancelled.'
+            });
+          }
+          waitForReady();
+        });
+      }
+    });
   }
 
   const workerScriptPath = path.join(sessionDir, 'worker.ps1');
@@ -646,15 +852,16 @@ ipcMain.handle('run-command', async (_event, { command, shell, elevate, useActiv
     const isWin = process.platform === 'win32';
     const cleanShell = (shell || 'PowerShell').replace(/\s*\(Elevated\)/i, '').trim();
 
-    if (isWin && useActiveSession && activeSessionDir && fs.existsSync(activeSessionDir) && (activeSessionElevated || !elevate)) {
+    if (useActiveSession && activeSessionDir && fs.existsSync(activeSessionDir) && (activeSessionElevated || !elevate)) {
       const cmdId = Date.now() + '_' + Math.random().toString(36).substring(2, 6);
-      const reqFile = path.join(activeSessionDir, `req_${cmdId}.ps1`);
+      const reqExt = isWin ? 'ps1' : 'sh';
+      const reqFile = path.join(activeSessionDir, `req_${cmdId}.${reqExt}`);
       const outFile = path.join(activeSessionDir, `out_${cmdId}.txt`);
       const statusFile = path.join(activeSessionDir, `status_${cmdId}.txt`);
 
       const body = command;
 
-      fs.writeFileSync(reqFile, body, 'utf8');
+      fs.writeFileSync(reqFile, body, { encoding: 'utf8', mode: 0o666 });
 
       let elapsed = 0;
       const poll = setInterval(() => {
@@ -761,14 +968,69 @@ ipcMain.handle('run-command', async (_event, { command, shell, elevate, useActiv
       return;
     }
 
-    const unixShell = cleanShell === 'Zsh' ? '/bin/zsh' : '/bin/bash';
-    exec(command, { shell: unixShell, timeout: 60000, maxBuffer: 1024 * 1024 * 10 }, (error, stdout, stderr) => {
-      const combinedOutput = ((stdout || '') + (stderr ? '\n' + stderr : '')).trim();
-      if (error) {
-        resolve({ status: 'error', output: combinedOutput || error.message, message: 'Command returned a non-zero exit code.' });
-      } else {
-        resolve({ status: 'success', output: combinedOutput, message: 'Ran successfully.' });
+    const resolved = resolveUnixShell(cleanShell);
+    if (!resolved.ok) {
+      return resolve({
+        status: 'error',
+        output: resolved.message,
+        message: resolved.message
+      });
+    }
+
+    const tempId = Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+    const scriptFile = path.join(os.tmpdir(), `sa_cmd_${tempId}.sh`);
+    const wrapFile = path.join(os.tmpdir(), `sa_wrap_${tempId}.sh`);
+    const outFile = path.join(os.tmpdir(), `sa_out_${tempId}.txt`);
+    const statusFile = path.join(os.tmpdir(), `sa_status_${tempId}.txt`);
+
+    fs.writeFileSync(scriptFile, `${command}\n`, { encoding: 'utf8', mode: 0o755 });
+
+    const unixWrapper = [
+      '#!/bin/sh',
+      'umask 000',
+      `"${resolved.binary}" "${scriptFile}" > "${outFile}" 2>&1`,
+      'if [ $? -eq 0 ]; then',
+      `  echo "success" > "${statusFile}"`,
+      'else',
+      `  echo "error" > "${statusFile}"`,
+      'fi'
+    ].join('\n');
+
+    fs.writeFileSync(wrapFile, `${unixWrapper}\n`, { encoding: 'utf8', mode: 0o755 });
+
+    const execCmd = elevate
+      ? (process.platform === 'darwin'
+          ? `osascript -e 'do shell script "/bin/sh \\"${wrapFile}\\"" with administrator privileges'`
+          : `pkexec /bin/sh "${wrapFile}"`)
+      : `/bin/sh "${wrapFile}"`;
+
+    exec(execCmd, { timeout: 60000, maxBuffer: 1024 * 1024 * 10, cwd: os.homedir() }, (err) => {
+      const statusRaw = fs.existsSync(statusFile) ? (fs.readFileSync(statusFile, 'utf8') || '').trim() : '';
+      const outputRaw = fs.existsSync(outFile) ? (fs.readFileSync(outFile, 'utf8') || '').trim() : '';
+      try { fs.unlinkSync(scriptFile); } catch (e) {}
+      try { fs.unlinkSync(wrapFile); } catch (e) {}
+      try { fs.unlinkSync(outFile); } catch (e) {}
+      try { fs.unlinkSync(statusFile); } catch (e) {}
+
+      if (err && !statusRaw) {
+        return resolve({
+          status: 'error',
+          output: outputRaw || err.message,
+          message: elevate ? 'Administrator elevation was declined or command failed.' : 'Command returned a non-zero exit code.'
+        });
       }
+      if (statusRaw === 'error') {
+        return resolve({
+          status: 'error',
+          output: outputRaw || 'Command failed with an error.',
+          message: 'Command returned a non-zero exit code.'
+        });
+      }
+      return resolve({
+        status: 'success',
+        output: outputRaw,
+        message: 'Ran successfully.'
+      });
     });
   });
 });

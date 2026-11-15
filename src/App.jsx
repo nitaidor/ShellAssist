@@ -232,12 +232,14 @@ export default function App() {
     });
   }, [hostOs]);
 
+  const defaultTabOs = isDesktopEnv ? hostOs : 'Windows';
+
   // Tab 0: Simulated Terminal State
   const [selectedSimOs, setSelectedSimOs] = useState(() => {
-    return persisted.current?.tabTags?.simulated?.os || 'Windows';
+    return persisted.current?.tabTags?.simulated?.os || defaultTabOs;
   });
   const [selectedSimShell, setSelectedSimShell] = useState(() => {
-    const os = persisted.current?.tabTags?.simulated?.os || 'Windows';
+    const os = persisted.current?.tabTags?.simulated?.os || defaultTabOs;
     const validShells = (SHELL_OPTIONS[os] || ['PowerShell']).filter(s => s !== '');
     const saved = persisted.current?.tabTags?.simulated?.shell;
     return saved && validShells.includes(saved) ? saved : (validShells[0] || 'PowerShell');
@@ -302,7 +304,7 @@ export default function App() {
   // Tab 2: Builder State
   const [builderCtx, setBuilderCtx] = useState(() => {
     const saved = persisted.current?.tabTags?.builder;
-    const os = saved?.os || 'Windows';
+    const os = saved?.os || defaultTabOs;
     const validShells = (SHELL_OPTIONS[os] || ['PowerShell']).filter(s => s !== '');
     const shell = saved?.shell && validShells.includes(saved.shell) ? saved.shell : (validShells[0] || 'PowerShell');
     const type = saved?.type === 'Script' ? 'Script' : 'Command';
@@ -314,7 +316,7 @@ export default function App() {
   // Tab 3: Analyzer State
   const [analyzerCtx, setAnalyzerCtx] = useState(() => {
     const saved = persisted.current?.tabTags?.analyzer;
-    const os = saved?.os || 'Windows';
+    const os = saved?.os || defaultTabOs;
     const validShells = (SHELL_OPTIONS[os] || ['PowerShell']).filter(s => s !== '');
     const shell = saved?.shell && validShells.includes(saved.shell) ? saved.shell : (validShells[0] || 'PowerShell');
     return { os, shell };
@@ -324,7 +326,7 @@ export default function App() {
   // Tab 4: Debugger State
   const [debugCtx, setDebugCtx] = useState(() => {
     const saved = persisted.current?.tabTags?.debugger;
-    const os = saved?.os || 'Windows';
+    const os = saved?.os || defaultTabOs;
     const validShells = (SHELL_OPTIONS[os] || ['PowerShell']).filter(s => s !== '');
     const shell = saved?.shell && validShells.includes(saved.shell) ? saved.shell : (validShells[0] || 'PowerShell');
     return { os, shell };

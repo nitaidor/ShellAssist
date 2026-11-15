@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, AlertCircle, X, Terminal, Loader2, Copy, TerminalSquare, Ban } from 'lucide-react';
 import { executeTerminalCommand } from '../../services/terminal';
+import { detectHostOS } from '../../utils/platform';
 import ContextTags from './ContextTags';
 
 export const RunActionButton = ({ command, ctx, settings, onErrorOutput, size = 'md', requiresElevation = false }) => {
@@ -26,14 +27,22 @@ export const RunActionButton = ({ command, ctx, settings, onErrorOutput, size = 
   const isDesktop = typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.runCommand === 'function';
   const isWebViewRestricted = !isDesktop;
 
+  // Cross-OS check: Prevent executing OS-specific commands on a mismatched host OS
+  // (DevOps contexts like Docker, Kubernetes, AWS, Terraform are cross-platform and allowed on any host OS)
+  const hostOs = isDesktop ? detectHostOS() : 'WebView';
+  const cleanCtxOs = (ctx?.os || '').replace(/\s*\(Simulated\)/i, '').trim();
+  const isOsSpecific = ['Windows', 'macOS', 'Linux'].includes(cleanCtxOs);
+  const isCrossOsMismatch = isDesktop && isOsSpecific && cleanCtxOs !== hostOs;
+
   // Smart AI elevation check: Evaluated purely on the AI's requiresElevation assessment
   const needsAdmin = Boolean(requiresElevation);
-  const isButtonDisabled = !settings?.enableExecution || isWebViewRestricted || runState === 'running';
+  const isButtonDisabled = !settings?.enableExecution || isWebViewRestricted || isCrossOsMismatch || runState === 'running';
 
   const getButtonTitle = () => {
     if (!settings?.enableExecution) return "Enable Terminal Integration in Settings";
     if (isWebViewRestricted) return "Local terminal execution requires the desktop application (use the Simulated Terminal tab to test commands in a browser)";
-    if (needsAdmin) return "Execute command as Administrator (triggers OS UAC prompt)";
+    if (isCrossOsMismatch) return `Cannot execute ${cleanCtxOs} commands on a ${hostOs} host (use the Simulated Terminal tab to test cross-OS commands)`;
+    if (needsAdmin) return "Execute command as Administrator (triggers OS UAC / sudo prompt)";
     return "Execute command in terminal";
   };
 
@@ -102,7 +111,7 @@ export const RunActionButton = ({ command, ctx, settings, onErrorOutput, size = 
 
   const sizeClasses = size === 'sm' ? 'px-3 py-1 text-xs gap-1.5' : 'px-4 py-1.5 text-sm gap-2';
   const iconSize = size === 'sm' ? 'w-3.5 h-3.5' : 'w-4 h-4';
-  let stateStyle = (!settings?.enableExecution || isWebViewRestricted)
+  let stateStyle = (!settings?.enableExecution || isWebViewRestricted || isCrossOsMismatch)
     ? 'bg-[#21262d] opacity-50 cursor-not-allowed border border-[#30363d] text-gray-400'
     : 'bg-blue-600 hover:bg-blue-700 text-white border border-transparent';
 
