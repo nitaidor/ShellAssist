@@ -690,11 +690,16 @@ ipcMain.handle('run-command', async (_event, { command, shell, elevate, useActiv
     if (isWin) {
       const tempId = Date.now() + '_' + Math.random().toString(36).substring(2, 6);
       const scriptFile = path.join(os.tmpdir(), `sa_cmd_${tempId}.ps1`);
+      const cmdBatchFile = cleanShell === 'CMD' ? path.join(os.tmpdir(), `sa_cmd_${tempId}.cmd`) : null;
       const outFile = path.join(os.tmpdir(), `sa_out_${tempId}.txt`);
       const statusFile = path.join(os.tmpdir(), `sa_status_${tempId}.txt`);
 
-      const innerCmd = cleanShell === 'CMD'
-        ? `cmd.exe /c "${command.replace(/"/g, '\\"')}"`
+      if (cmdBatchFile) {
+        fs.writeFileSync(cmdBatchFile, `@echo off\r\nchcp 65001 >nul\r\n${command}\r\n`, 'utf8');
+      }
+
+      const innerCmd = cmdBatchFile
+        ? `& cmd.exe /c "${cmdBatchFile.replace(/\\/g, '\\\\')}"`
         : command;
 
       const psWrapper = [
@@ -729,6 +734,7 @@ ipcMain.handle('run-command', async (_event, { command, shell, elevate, useActiv
         const statusRaw = fs.existsSync(statusFile) ? (fs.readFileSync(statusFile, 'utf8') || '').trim() : '';
         const outputRaw = fs.existsSync(outFile) ? (fs.readFileSync(outFile, 'utf8') || '').trim() : '';
         try { fs.unlinkSync(scriptFile); } catch (e) {}
+        if (cmdBatchFile) { try { fs.unlinkSync(cmdBatchFile); } catch (e) {} }
         try { fs.unlinkSync(outFile); } catch (e) {}
         try { fs.unlinkSync(statusFile); } catch (e) {}
 
