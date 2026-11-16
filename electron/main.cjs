@@ -11,7 +11,11 @@ if (process.platform === 'linux') {
   app.commandLine.appendSwitch('no-sandbox');
 }
 if (process.platform === 'win32') {
-  app.setAppUserModelId('com.shellassist.desktop');
+  // In portable runs the app launches from a temporary extracted binary with no Start Menu shortcut,
+  // so keep the custom AppUserModelId for installed builds only.
+  if (!process.env.PORTABLE_EXECUTABLE_FILE) {
+    app.setAppUserModelId('com.shellassist.desktop');
+  }
 } else {
   // Ensure GUI-launched macOS / Linux builds include Homebrew & local user binary paths
   const extraPaths = [
