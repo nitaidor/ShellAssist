@@ -71,7 +71,9 @@ Distributed under the MIT License. See `LICENSE` for more information.
 ## Acknowledgments
 
 * Desktop framework by [Electron](https://www.electronjs.org) (MIT License).
+* Packaging tool by [electron-builder](https://github.com/electron-userland/electron-builder) (MIT License).
 * Frontend library by [React](https://react.dev) (MIT License).
+* Build tool by [Vite](https://vite.dev) (MIT License).
 * UI framework by [Tailwind CSS](https://tailwindcss.com) (MIT License).
 * Icons by [Lucide](https://lucide.dev) (ISC License).
 * Local AI engine by [Ollama](https://ollama.com) (MIT License).
