@@ -1,7 +1,7 @@
 {
   "name": "shellassist",
   "productName": "ShellAssist",
-  "version": "1.4.8",
+  "version": "1.4.10",
   "author": "Nitai",
   "type": "module",
   "description": "ShellAssist",
@@ -30,6 +30,7 @@
   "build": {
     "appId": "com.shellassist.app",
     "productName": "ShellAssist",
+    "afterPack": "./scripts/afterPack.cjs",
     "directories": {
       "output": "dist-exe"
     },
@@ -73,6 +74,9 @@
       "icon": "assets/icon.png",
       "category": "Utility",
       "maintainer": "Nitai <nitai@users.noreply.github.com>",
+      "executableArgs": [
+        "--no-sandbox"
+      ],
       "target": [
         {
           "target": "AppImage",
