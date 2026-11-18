@@ -28,15 +28,10 @@ Download the latest installer or portable executable directly from the [Releases
 Before you begin, ensure you have [Node.js](https://nodejs.org/) installed.
 
 1. Clone the repository:
-
-   **SSH:**
-     ```bash
-     git clone git@github.com:nitaidor/ShellAssist.git
-     ```
-   **HTTPS:**
-     ```bash
-     git clone https://github.com/nitaidor/ShellAssist.git
-     ```
+   ```bash
+   git clone git@github.com:nitaidor/ShellAssist.git      # SSH
+   git clone https://github.com/nitaidor/ShellAssist.git  # HTTPS
+   ```
 2. Navigate to the project directory:
    ```bash
    cd ShellAssist
@@ -48,21 +43,23 @@ Before you begin, ensure you have [Node.js](https://nodejs.org/) installed.
 
 ## Usage (Development)
 
-* To install dependencies manually, run:
+* Install dependencies:
    ```bash
    npm install
    ```
-* To start the application in development mode, run:
+* Start the browser dev server (`http://localhost:5173`):
    ```bash
    npm run dev
    ```
-* To compile the production web bundle, run:
+* Build the production web bundle (`dist/`):
    ```bash
    npm run build
    ```
-* To compile the bundle and package the Windows desktop executables, run:
+* Package desktop installers/executables (`dist-exe/`):
    ```bash
-   npm run dist
+   npm run dist        # Windows
+   npm run dist:linux  # Linux (AppImage & deb)
+   npm run dist:mac    # macOS (dmg & zip)
    ```
 
 ## License
