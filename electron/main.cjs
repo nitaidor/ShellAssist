@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, nativeTheme } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, nativeTheme, shell } = require('electron');
 const path = require('path');
 const { exec, execSync, spawn } = require('child_process');
 const os = require('os');
@@ -452,6 +452,37 @@ ipcMain.handle('fetch-ollama-catalog', async (_event, latestModelsToResolve = []
   return { status: 'offline', models: [], latestMatches };
 });
 
+// Checks GitHub releases for application updates without CORS limitations or stale browser caching
+ipcMain.handle('check-for-updates', async () => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    const timestamp = Date.now();
+    const res = await fetch(`https://api.github.com/repos/nitaidor/ShellAssist/releases?per_page=15&_t=${timestamp}`, {
+      headers: {
+        'Accept': 'application/vnd.github+json',
+        'User-Agent': 'ShellAssist-Desktop'
+      },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      throw new Error(`GitHub API returned status ${res.status}`);
+    }
+
+    const releases = await res.json();
+    return { ok: true, releases };
+  } catch (err) {
+    clearTimeout(timeoutId);
+    return {
+      ok: false,
+      error: err.name === 'AbortError' ? 'Connection timed out' : (err.message || 'Failed to fetch')
+    };
+  }
+});
+
 // ---------------- INTERACTIVE TERMINAL SESSION BRIDGE ----------------
 let activeSessionDir = null;
 let activeSessionElevated = false;
@@ -560,6 +591,14 @@ function createWindow() {
       const menu = Menu.buildFromTemplate(menuTemplate);
       menu.popup({ window: win });
     }
+  });
+
+  // Open external links (such as GitHub releases or repo) in user's default browser
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://') || url.startsWith('http://')) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
   });
 
   win.loadFile(path.join(__dirname, '../dist/index.html'));

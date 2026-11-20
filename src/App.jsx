@@ -9,6 +9,7 @@ import GeneralDebuggerTab from './tabs/debugger/GeneralDebuggerTab';
 import SettingsModal from './components/modals/SettingsModal';
 import HelpModal from './components/modals/HelpModal';
 import AboutModal from './components/modals/AboutModal';
+import UpdateModal from './components/modals/UpdateModal';
 import {
   TerminalDisclaimerModal,
   RequiresElevationModal,
@@ -21,6 +22,8 @@ import { loadPersistedState, savePersistedState } from './utils/storage';
 import { detectHostOS, getInteractiveShellOptions, generateId, isDesktopEnvironment } from './utils/platform';
 import { SHELL_OPTIONS } from './constants/environment';
 import { executeTerminalCommand, startTerminalSession, stopTerminalSession } from './services/terminal';
+import { checkForUpdates } from './services/updater';
+import { version } from '../package.json';
 import {
   fetchCommandGeneration,
   fetchInteractiveAutoDebug,
@@ -78,6 +81,9 @@ export default function App() {
   const [showHelpModal, setShowHelpModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showAboutModal, setShowAboutModal] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState('checking');
+  const [updateData, setUpdateData] = useState(null);
   const [showTerminalDisclaimerModal, setShowTerminalDisclaimerModal] = useState(false);
   const [historyClearModal, setHistoryClearModal] = useState(null);
   const [activeTab, setActiveTab] = useState('builder');
@@ -217,6 +223,44 @@ export default function App() {
     }
   }, [isDesktopEnv]);
 
+  // Background check for updates on app startup
+  useEffect(() => {
+    let isCancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        const result = await checkForUpdates(version);
+        if (isCancelled) return;
+        if (result.status === 'update-available') {
+          setUpdateData(result);
+          setUpdateStatus('update-available');
+          setShowUpdateModal(true);
+        }
+      } catch (err) {
+        console.debug('Background update check failed:', err);
+      }
+    }, 1500);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timer);
+    };
+  }, []);
+
+  const handleCheckForUpdates = async () => {
+    setUpdateStatus('checking');
+    setUpdateData(null);
+    setShowUpdateModal(true);
+
+    try {
+      const result = await checkForUpdates(version);
+      setUpdateData(result);
+      setUpdateStatus(result.status);
+    } catch (err) {
+      setUpdateData({ currentVersion: version, error: err.message || 'Failed to check for updates' });
+      setUpdateStatus('error');
+    }
+  };
+
   const [selectedInteractiveShell, setSelectedInteractiveShell] = useState(() => {
     const saved = persisted.current?.tabTags?.interactive?.shell;
     if (saved && interactiveShellOptions.includes(saved)) return saved;
@@ -279,6 +323,7 @@ export default function App() {
     showHelpModal ||
     showSettingsModal ||
     showAboutModal ||
+    showUpdateModal ||
     showTerminalDisclaimerModal ||
     simElevationModalTurn !== null ||
     elevationModalTurn !== null ||
@@ -1025,6 +1070,7 @@ export default function App() {
           onOpenSettings={() => setShowSettingsModal(true)}
           onOpenHelp={() => setShowHelpModal(true)}
           onOpenAbout={() => setShowAboutModal(true)}
+          onCheckForUpdates={handleCheckForUpdates}
         />
 
         <TabNav activeTab={activeTab} setActiveTab={setActiveTab} />
@@ -1355,6 +1401,13 @@ export default function App() {
         <AboutModal
           isOpen={showAboutModal}
           onClose={() => setShowAboutModal(false)}
+        />
+
+        <UpdateModal
+          isOpen={showUpdateModal}
+          onClose={() => setShowUpdateModal(false)}
+          updateStatus={updateStatus}
+          updateData={updateData}
         />
       </div>
     </ErrorBoundary>

@@ -1,7 +1,7 @@
 import React, { useRef, useEffect } from 'react';
-import { Settings, HelpCircle, AlertTriangle, XCircle, CheckCircle2, Loader2, Info } from 'lucide-react';
+import { Settings, HelpCircle, AlertTriangle, XCircle, CheckCircle2, Loader2, Info, RotateCw } from 'lucide-react';
 
-export const Header = ({ isDarkMode, settings, apiStatus, showMenu, setShowMenu, onOpenSettings, onOpenHelp, onOpenAbout }) => {
+export const Header = ({ isDarkMode, settings, apiStatus, showMenu, setShowMenu, onOpenSettings, onOpenHelp, onOpenAbout, onCheckForUpdates }) => {
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -133,6 +133,12 @@ export const Header = ({ isDarkMode, settings, apiStatus, showMenu, setShowMenu,
               className="theme-menu-item w-full text-left px-4 py-3 text-sm flex items-center gap-2 border-t border-[#30363d] transition-colors"
             >
               <Info className="w-4 h-4" /> About ShellAssist
+            </button>
+            <button
+              onClick={() => { onCheckForUpdates(); setShowMenu(false); }}
+              className="theme-menu-item w-full text-left px-4 py-3 text-sm flex items-center gap-2 border-t border-[#30363d] transition-colors"
+            >
+              <RotateCw className="w-4 h-4" /> Check for Updates
             </button>
           </div>
         )}

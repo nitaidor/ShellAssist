@@ -13,5 +13,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkOllamaInstalled: () => ipcRenderer.invoke('check-ollama-installed'),
   startOllama: () => ipcRenderer.invoke('start-ollama'),
   stopOllama: () => ipcRenderer.invoke('stop-ollama'),
-  fetchOllamaCatalog: (latestModels) => ipcRenderer.invoke('fetch-ollama-catalog', latestModels)
+  fetchOllamaCatalog: (latestModels) => ipcRenderer.invoke('fetch-ollama-catalog', latestModels),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates')
 });
